@@ -1,0 +1,26 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.tonywww.bossrefactortf.mixin",
+  "refmap": "bossrefactortf.refmap.json",
+  "compatibilityLevel": "JAVA_17",
+  "mixins": [
+    "boss.AlphaYetiMixin",
+    "boss.CarminiteGhastguardTrapMixin",
+    "boss.FallingIceMixin",
+    "boss.GhastTrapBlockEntityMixin",
+    "boss.KnightPhantomMixin",
+    "boss.KnightPhantomNearestTargetGoalMixin",
+    "boss.KnightPhantomTargetGoalMixin",
+    "boss.NoClipMoveControlMixin",
+    "boss.PhantomAttackGoalsMixin",
+    "boss.PhantomThrowWeaponGoalAccessMixin",
+    "boss.PhantomUpdateFormationAndMoveGoalMixin",
+    "boss.UrGhastFireballMixin",
+    "boss.UrGhastMixin"
+  ],
+  "client": [],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

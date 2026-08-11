@@ -1,0 +1,458 @@
+plugins {
+    id 'eclipse'
+    id 'idea'
+    id 'maven-publish'
+    id 'net.minecraftforge.gradle' version '[6.0,6.2)'
+    id 'org.spongepowered.mixin' version '0.7.+'
+    id 'org.parchmentmc.librarian.forgegradle' version '1.+'
+}
+
+apply plugin: 'org.spongepowered.mixin'
+
+version = mod_version
+group = mod_group_id
+
+base {
+    archivesName = mod_id
+}
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(17)
+
+println "Java: ${System.getProperty 'java.version'}, JVM: ${System.getProperty 'java.vm.version'} (${System.getProperty 'java.vendor'}), Arch: ${System.getProperty 'os.arch'}"
+
+minecraft {
+    mappings channel: mapping_channel, version: mapping_version
+    copyIdeResources = true
+
+    runs {
+        configureEach {
+            workingDirectory project.file('run')
+            property 'forge.logging.markers', 'REGISTRIES'
+            property 'forge.logging.console.level', 'debug'
+            property 'mixin.env.remapRefMap', 'true'
+            property 'mixin.env.refMapRemappingFile', "${projectDir}/build/createSrgToMcp/output.srg"
+
+            mods {
+                "${mod_id}" {
+                    source sourceSets.main
+                }
+            }
+        }
+
+        client {
+            property 'forge.enabledGameTestNamespaces', mod_id
+        }
+
+        server {
+            property 'forge.enabledGameTestNamespaces', mod_id
+            args '--nogui'
+        }
+
+        gameTestServer {
+            property 'forge.enabledGameTestNamespaces', mod_id
+        }
+
+        data {
+            workingDirectory project.file('run-data')
+            args '--mod', mod_id, '--all', '--output', file('src/generated/resources/'),
+                    '--existing', file('src/main/resources/')
+        }
+    }
+}
+
+mixin {
+    add sourceSets.main, 'bossrefactortf.refmap.json'
+    config 'bossrefactortf.mixins.json'
+}
+
+sourceSets.main.resources { srcDir 'src/generated/resources' }
+
+repositories {
+    mavenCentral()
+
+    flatDir {
+        name = 'Local mods'
+        dirs 'libs'
+    }
+
+    maven {
+        name = 'CurseMaven'
+        url = 'https://cursemaven.com'
+        content { includeGroup 'curse.maven' }
+    }
+
+    maven {
+        name = "Jared's maven"
+        url = 'https://maven.blamejared.com/'
+    }
+
+    maven {
+        name = 'ModMaven'
+        url = 'https://modmaven.dev'
+    }
+
+}
+
+dependencies {
+    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+
+    implementation fg.deobf(
+            "curse.maven:the-twilight-forest-227639:${twilight_forest_file_id}")
+
+    compileOnly fg.deobf("local:slashblade_sendims:${sendims_version}")
+    if (project.hasProperty('enableSenDimsRuntime')) {
+        runtimeOnly fg.deobf(
+                "curse.maven:slashblade-resharped-1022428:${slashblade_file_id}")
+        runtimeOnly fg.deobf("local:slashblade_sendims:${sendims_version}")
+    }
+
+    runtimeOnly fg.deobf(
+            "mezz.jei:jei-${minecraft_version}-forge:${jei_version}")
+
+    implementation 'org.spongepowered:mixin:0.8.5'
+    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+}
+
+tasks.named('processResources', ProcessResources).configure {
+    def replaceProperties = [
+            minecraft_version             : minecraft_version,
+            minecraft_version_range       : minecraft_version_range,
+            forge_version                 : forge_version,
+            forge_version_range           : forge_version_range,
+            loader_version_range          : loader_version_range,
+            twilight_forest_version_range : twilight_forest_version_range,
+            mod_id                        : mod_id,
+            mod_name                      : mod_name,
+            mod_license                   : mod_license,
+            mod_version                   : mod_version,
+            mod_authors                   : mod_authors,
+            mod_description               : mod_description
+    ]
+    inputs.properties replaceProperties
+
+    filesMatching(['META-INF/mods.toml', 'pack.mcmeta']) {
+        expand replaceProperties + [project: project]
+    }
+}
+
+tasks.named('jar', Jar).configure {
+    exclude '**/gametest/**'
+    manifest {
+        attributes([
+                'Specification-Title'     : mod_id,
+                'Specification-Vendor'    : mod_authors,
+                'Specification-Version'   : '1',
+                'Implementation-Title'    : project.name,
+                'Implementation-Version'  : project.jar.archiveVersion,
+                'Implementation-Vendor'   : mod_authors,
+                'Implementation-Timestamp': new Date().format("yyyy-MM-dd'T'HH:mm:ssZ")
+        ])
+    }
+    finalizedBy 'reobfJar'
+}
+
+publishing {
+    publications {
+        register('mavenJava', MavenPublication) {
+            artifact jar
+        }
+    }
+    repositories {
+        maven {
+            url "file://${project.projectDir}/mcmodsrepo"
+        }
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+tasks.register('telegraphSelfTest', JavaExec) {
+    group = 'verification'
+    description = 'Runs dependency-free attack telegraph checks.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.tonywww.bossrefactortf.telegraph.AttackTelegraphSelfTest'
+}
+
+tasks.register('knightPhantomCombatSelfTest', JavaExec) {
+    group = 'verification'
+    description = 'Runs dependency-free Knight Phantom combat-rule checks.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.tonywww.bossrefactortf.boss.knightphantom.KnightPhantomCombatRulesSelfTest'
+}
+
+tasks.register('alphaYetiCombatSelfTest', JavaExec) {
+    group = 'verification'
+    description = 'Runs dependency-free Alpha Yeti combat-rule checks.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.tonywww.bossrefactortf.boss.alphayeti.AlphaYetiCombatRulesSelfTest'
+}
+
+tasks.register('urGhastCombatSelfTest', JavaExec) {
+    group = 'verification'
+    description = 'Runs dependency-free Ur-Ghast combat-rule checks.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.tonywww.bossrefactortf.boss.urghast.UrGhastCombatRulesSelfTest'
+}
+
+tasks.register('verifyOptionalSenDimsIsolation') {
+    group = 'verification'
+    description = 'Ensures only the delayed SenDimS compat package links against its API.'
+    def coreSources = fileTree('src/main/java') {
+        include '**/*.java'
+        exclude '**/compat/sendims/**'
+    }
+    inputs.files(coreSources)
+    doLast {
+        def leaks = coreSources.files.findAll {
+            it.getText('UTF-8').contains('com.tonywww.slashblade_sendims')
+        }
+        if (!leaks.isEmpty()) {
+            throw new GradleException("SenDimS API leaked into core classes: ${leaks}")
+        }
+    }
+}
+
+tasks.register('verifyDefaultRuntimeOmitsSenDims') {
+    group = 'verification'
+    description = 'Ensures the default runtime classpath excludes SenDimS and SlashBlade.'
+    doLast {
+        if (project.hasProperty('enableSenDimsRuntime')) {
+            return
+        }
+        def leaks = configurations.runtimeClasspath.files.findAll {
+            it.name.contains('slashblade_sendims') ||
+                    it.name.contains('slashblade-resharped')
+        }
+        if (!leaks.isEmpty()) {
+            throw new GradleException(
+                    "SenDimS runtime dependencies leaked into the default runtime: ${leaks}")
+        }
+    }
+}
+
+tasks.register('verifyMixinRefmapContract') {
+    group = 'verification'
+    description = 'Ensures production Mixin targets have refmap or explicit SRG mappings.'
+    dependsOn tasks.named('compileJava')
+    def mixinConfigFile = file('src/main/resources/bossrefactortf.mixins.json')
+    def generatedRefmapFile = file(
+            "$buildDir/tmp/compileJava/bossrefactortf.refmap.json")
+    def attackGoalsMixinFile = file(
+        'src/main/java/com/tonywww/bossrefactortf/mixin/boss/PhantomAttackGoalsMixin.java')
+    def formationGoalMixinFile = file(
+        'src/main/java/com/tonywww/bossrefactortf/mixin/boss/PhantomUpdateFormationAndMoveGoalMixin.java')
+    def throwWeaponInvokerMixinFile = file(
+        'src/main/java/com/tonywww/bossrefactortf/mixin/boss/PhantomThrowWeaponGoalAccessMixin.java')
+    def alphaYetiMixinFile = file(
+        'src/main/java/com/tonywww/bossrefactortf/mixin/boss/AlphaYetiMixin.java')
+    def fallingIceMixinFile = file(
+        'src/main/java/com/tonywww/bossrefactortf/mixin/boss/FallingIceMixin.java')
+    def urGhastMixinFile = file(
+        'src/main/java/com/tonywww/bossrefactortf/mixin/boss/UrGhastMixin.java')
+    def urGhastFireballMixinFile = file(
+        'src/main/java/com/tonywww/bossrefactortf/mixin/boss/UrGhastFireballMixin.java')
+    def carminiteTrapMixinFile = file(
+        'src/main/java/com/tonywww/bossrefactortf/mixin/boss/CarminiteGhastguardTrapMixin.java')
+    def ghastTrapMixinFile = file(
+        'src/main/java/com/tonywww/bossrefactortf/mixin/boss/GhastTrapBlockEntityMixin.java')
+    inputs.files(mixinConfigFile, generatedRefmapFile,
+        attackGoalsMixinFile, formationGoalMixinFile,
+        throwWeaponInvokerMixinFile, alphaYetiMixinFile,
+        fallingIceMixinFile, urGhastMixinFile,
+        urGhastFireballMixinFile, carminiteTrapMixinFile,
+        ghastTrapMixinFile)
+    doLast {
+        def jsonSlurper = new groovy.json.JsonSlurper()
+        def mixinConfig = jsonSlurper.parse(mixinConfigFile)
+        if (mixinConfig.refmap != generatedRefmapFile.name) {
+            throw new GradleException(
+                    "Mixin config must declare refmap '${generatedRefmapFile.name}'")
+        }
+
+        def mappings = jsonSlurper.parse(generatedRefmapFile).mappings
+        def requiredMappings = [
+                'com/tonywww/bossrefactortf/mixin/boss/KnightPhantomTargetGoalMixin': [
+                        canContinueToUse:
+                                'Lnet/minecraft/world/entity/ai/goal/target/TargetGoal;m_8045_()Z'
+                ],
+                'com/tonywww/bossrefactortf/mixin/boss/KnightPhantomNearestTargetGoalMixin': [
+                        canUse:
+                                'Lnet/minecraft/world/entity/ai/goal/target/NearestAttackableTargetGoal;m_8036_()Z'
+                ]
+        ]
+        def mismatches = []
+        requiredMappings.each { mixinClass, methods ->
+            methods.each { method, expectedTarget ->
+                def actualTarget = mappings[mixinClass]?.get(method)
+                if (actualTarget != expectedTarget) {
+                    mismatches.add(
+                            "${mixinClass}.${method}: expected ${expectedTarget}, got ${actualTarget}")
+                }
+            }
+        }
+        if (!mismatches.isEmpty()) {
+            throw new GradleException(
+                    "Production Mixin mappings are missing or incorrect: ${mismatches}")
+        }
+
+        def explicitSrgSelectors = [
+                (attackGoalsMixinFile):
+                        ['method = {"canUse", "m_8036_"}'],
+                (formationGoalMixinFile):
+                        [
+                                'method = {"canUse", "m_8036_"}',
+                                'method = {"tick", "m_8037_"}'
+                    ],
+                (alphaYetiMixinFile):
+                    [
+                        'method = {"registerGoals", "m_8099_"}',
+                        'method = {"defineSynchedData", "m_8097_"}',
+                        'method = {"aiStep", "m_8107_"}',
+                        'method = {"addAdditionalSaveData", "m_7380_"}',
+                        'method = {"readAdditionalSaveData", "m_7378_"}'
+                    ],
+                (fallingIceMixinFile):
+                    [
+                        'method = {"defineSynchedData", "m_8097_"}',
+                        'method = {"tick", "m_8119_"}',
+                        'method = {"addAdditionalSaveData", "m_7380_"}',
+                        'method = {"readAdditionalSaveData", "m_7378_"}'
+                        ],
+                (urGhastMixinFile):
+                    [
+                        'method = "registerAttributes"',
+                        'method = {"registerGoals", "m_8099_"}',
+                        'method = {"defineSynchedData", "m_8097_"}',
+                        'method = {"hurt", "m_6469_"}',
+                        'method = {"getHurtSound", "m_7975_"}',
+                        'method = {"customServerAiStep", "m_8024_"}',
+                        'target = "Ltwilightforest/entity/boss/UrGhast;setTarget(Lnet/minecraft/world/entity/LivingEntity;)V"',
+                        'target = "Ltwilightforest/entity/boss/UrGhast;m_6710_(Lnet/minecraft/world/entity/LivingEntity;)V"',
+                        'method = {"addAdditionalSaveData", "m_7380_"}',
+                        'method = {"readAdditionalSaveData", "m_7378_"}'
+                        ],
+                (urGhastFireballMixinFile):
+                    [
+                        'method = {"onHit", "m_6532_"}'
+                        ]
+        ]
+        def missingSelectors = explicitSrgSelectors.collectMany {
+                sourceFile, selectors ->
+            def source = sourceFile.getText('UTF-8')
+            selectors.findAll { !source.contains(it) }.collect {
+                "${sourceFile.name}: ${it}"
+            }
+        }
+        if (!missingSelectors.isEmpty()) {
+            throw new GradleException(
+                    "Explicit SRG Mixin selectors are missing: ${missingSelectors}")
+        }
+
+        if (!mixinConfig.mixins.contains(
+                'boss.PhantomThrowWeaponGoalAccessMixin')) {
+            throw new GradleException(
+                    'The custom state machine must register the vanilla skill invoker Mixin')
+        }
+        for (String mixinName : ['boss.AlphaYetiMixin',
+                     'boss.FallingIceMixin',
+                     'boss.UrGhastMixin',
+                     'boss.UrGhastFireballMixin',
+                     'boss.CarminiteGhastguardTrapMixin',
+                     'boss.GhastTrapBlockEntityMixin']) {
+            if (!mixinConfig.mixins.contains(mixinName)) {
+                throw new GradleException(
+                        "The Alpha Yeti takeover must register ${mixinName}")
+            }
+        }
+        def throwWeaponInvoker = throwWeaponInvokerMixinFile.getText('UTF-8')
+        for (String method : ['@Invoker("launchAxeAt")',
+                              '@Invoker("launchPicks")']) {
+            if (!throwWeaponInvoker.contains(method)) {
+                throw new GradleException(
+                        "Vanilla Knight Phantom skill invoker is missing: ${method}")
+            }
+        }
+    }
+}
+
+tasks.register('verifySenDimsSkeletonContracts') {
+    group = 'verification'
+    description = 'Checks the Knight Phantom SenDimS EXTERNAL Leader integration.'
+    def modFile = file(
+            'src/main/java/com/tonywww/bossrefactortf/BossRefactorTwilightForest.java')
+    def integrationFile = file(
+            'src/main/java/com/tonywww/bossrefactortf/boss/TwilightBossParryIntegration.java')
+    def compatFile = file(
+            'src/main/java/com/tonywww/bossrefactortf/compat/sendims/TwilightForestSenDimsCompat.java')
+        def providerFile = file(
+            'src/main/java/com/tonywww/bossrefactortf/compat/sendims/client/ExternalLeaderIndicatorProvider.java')
+        inputs.files(modFile, integrationFile, compatFile, providerFile)
+    doLast {
+        def mod = modFile.getText('UTF-8')
+        def integration = integrationFile.getText('UTF-8')
+        def compat = compatFile.getText('UTF-8')
+        def provider = providerFile.getText('UTF-8')
+        def required = [
+                'TwilightBossParryIntegration.install(compat)',
+                '@SubscribeEvent(priority = EventPriority.LOWEST)',
+                'event.setDecision(LeaderParryDecision.PARRY)',
+                'LeaderParriedEvent',
+                'LeaderApi.isParryable(boss)',
+                'LeaderApi.isParried(boss)',
+            'registerClientIndicatorProvider()',
+            'Class.forName(CLIENT_INDICATOR_PROVIDER)',
+                'LeaderProfile.EXTERNAL',
+            'ClientLeaderIndicatorApi.registerExternalWarningProvider(',
+            'ExternalLeaderIndicatorProvider::warningProgress',
+            'bossRefactorTF$isCurrentAttackParryable()',
+            'ParryIndicatorStyle.isVisible(true, telegraph)',
+            'OptionalDouble.of(telegraph.progress())',
+            'OptionalDouble.of(1.0)'
+        ]
+        def combined = compat + '\n' + provider
+        def missing = required.findAll { !combined.contains(it) }
+        if (!missing.isEmpty()) {
+            throw new GradleException("SenDimS skeleton contracts are missing: ${missing}")
+        }
+        def migratedRenderingContracts = [
+            'RenderLivingEvent',
+            'ClientTickEvent',
+            'DustColorTransitionOptions',
+            'Component.literal("危")',
+            'particleEngine'
+        ]
+        def retainedRenderingContracts = migratedRenderingContracts.findAll {
+            provider.contains(it)
+        }
+        if (!retainedRenderingContracts.isEmpty()) {
+            throw new GradleException(
+                "Rendering must be owned by SenDimS: ${retainedRenderingContracts}")
+        }
+        if (!mod.contains(
+                'TwilightBossParryIntegration.declareExternalLeaderType(')
+                || !mod.contains('TFEntities.KNIGHT_PHANTOM.get()')) {
+            throw new GradleException(
+                    'Knight Phantom must be registered as an EXTERNAL Leader')
+        }
+        if (!integration.contains('new LinkedHashSet<>()')) {
+            throw new GradleException('External Leader type registration must remain deduplicated')
+        }
+    }
+}
+
+tasks.named('check').configure {
+    dependsOn tasks.named('telegraphSelfTest')
+    dependsOn tasks.named('knightPhantomCombatSelfTest')
+    dependsOn tasks.named('alphaYetiCombatSelfTest')
+    dependsOn tasks.named('urGhastCombatSelfTest')
+    dependsOn tasks.named('verifyOptionalSenDimsIsolation')
+    dependsOn tasks.named('verifyDefaultRuntimeOmitsSenDims')
+    dependsOn tasks.named('verifyMixinRefmapContract')
+    dependsOn tasks.named('verifySenDimsSkeletonContracts')
+}
