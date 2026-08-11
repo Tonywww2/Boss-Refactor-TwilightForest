@@ -12,6 +12,7 @@
     "boss.KnightPhantomMixin",
     "boss.KnightPhantomNearestTargetGoalMixin",
     "boss.KnightPhantomTargetGoalMixin",
+    "boss.LargeFireballTelegraphMixin",
     "boss.NoClipMoveControlMixin",
     "boss.PhantomAttackGoalsMixin",
     "boss.PhantomThrowWeaponGoalAccessMixin",
@@ -19,7 +20,9 @@
     "boss.UrGhastFireballMixin",
     "boss.UrGhastMixin"
   ],
-  "client": [],
+  "client": [
+    "client.LargeFireballRendererMixin"
+  ],
   "injectors": {
     "defaultRequire": 1
   }

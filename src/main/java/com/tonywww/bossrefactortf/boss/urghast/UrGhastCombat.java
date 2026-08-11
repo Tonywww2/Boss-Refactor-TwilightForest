@@ -29,10 +29,10 @@ import java.util.List;
 import java.util.Set;
 
 public final class UrGhastCombat {
-    private static final double FIREBALL_SPAWN_DISTANCE = 8.5;
-    private static final double SECOND_FIREBALL_OFFSET = 2.5;
     private static final DustParticleOptions CRIMSON_MIST =
             new DustParticleOptions(new Vector3f(0.68F, 0.01F, 0.03F), 2.0F);
+        private static final DustParticleOptions TANTRUM_ENERGY =
+            new DustParticleOptions(new Vector3f(1.0F, 0.02F, 0.02F), 1.8F);
 
     private UrGhastCombat() {
     }
@@ -44,7 +44,6 @@ public final class UrGhastCombat {
     public static boolean isOffensive(UrGhast ghast) {
         UrGhastCombatState state = state(ghast);
         return customCombatEnabled()
-                && state.offensiveModeUnlocked
                 && state.mode == UrGhastCombatMode.OFFENSIVE;
     }
 
@@ -106,6 +105,50 @@ public final class UrGhastCombat {
                         .hurtSoundCooldownTicks.get();
         return true;
     }
+
+        public static void tickTantrumVisuals(UrGhast ghast) {
+        if (!ghast.level().isClientSide()
+            || !customCombatEnabled()
+            || !ghast.isInTantrum()
+            || ghast.isDeadOrDying()) {
+            return;
+        }
+        BossRefactorTwilightForestConfig.UrGhastConfig config =
+            BossRefactorTwilightForestConfig.UR_GHAST;
+        for (int index = 0;
+            index < config.tantrumRedSmokeParticlesPerTick.get();
+            index++) {
+            double x = ghast.getX()
+                + (ghast.getRandom().nextDouble() - 0.5)
+                    * ghast.getBbWidth() * 0.9;
+            double y = ghast.getY()
+                + ghast.getRandom().nextDouble() * ghast.getBbHeight();
+            double z = ghast.getZ()
+                + (ghast.getRandom().nextDouble() - 0.5)
+                    * ghast.getBbWidth() * 0.9;
+            ghast.level().addParticle(
+                ParticleTypes.ENTITY_EFFECT,
+                x, y, z, 0.85, 0.01, 0.01);
+        }
+        int interval = config.tantrumEnergyRingIntervalTicks.get();
+        if (ghast.tickCount % interval != 0) {
+            return;
+        }
+        int particleCount = config.tantrumEnergyRingParticles.get();
+        double radius = ghast.getBbWidth() * 0.65;
+        double y = ghast.getY() + ghast.getBbHeight() * 0.5;
+        for (int index = 0; index < particleCount; index++) {
+            double angle = Math.PI * 2.0 * index / particleCount;
+            double cosine = Math.cos(angle);
+            double sine = Math.sin(angle);
+            ghast.level().addParticle(
+                TANTRUM_ENERGY,
+                ghast.getX() + cosine * radius,
+                y,
+                ghast.getZ() + sine * radius,
+                cosine * 0.04, 0.03, sine * 0.04);
+        }
+        }
 
     public static boolean explodeFireball(
             UrGhastFireball fireball, HitResult hitResult) {
@@ -180,24 +223,18 @@ public final class UrGhastCombat {
             UrGhast ghast, UrGhastCombatState state) {
         BossRefactorTwilightForestConfig.UrGhastConfig config =
                 BossRefactorTwilightForestConfig.UR_GHAST;
-        if (!state.offensiveModeUnlocked) {
-            if (!UrGhastCombatRules.offensiveModeUnlocked(
-                    ghast.getHealth(), ghast.getMaxHealth())) {
-                return false;
-            }
-            state.offensiveModeUnlocked = true;
+        if (UrGhastCombatRules.shouldTriggerHalfHealthOffensive(
+                state.halfHealthAttackTriggered,
+                ghast.getHealth(), ghast.getMaxHealth())) {
+            state.halfHealthAttackTriggered = true;
             enterMode(ghast, state, UrGhastCombatMode.OFFENSIVE);
+            beginMist(ghast, state);
             return true;
         }
 
         state.modeTicks++;
-        int visitedPoints = state.mode == UrGhastCombatMode.PATROL
-            ? state.visitedPatrolPoints
-            : 0;
         if (!UrGhastCombatRules.shouldSwitchMode(
-            state.modeTicks, visitedPoints,
-            config.modeDurationTicks.get(),
-            config.patrolPointsPerMode.get())) {
+                state.modeTicks, config.modeDurationTicks.get())) {
             return false;
         }
         enterMode(ghast, state, state.mode.opposite());
@@ -209,7 +246,6 @@ public final class UrGhastCombat {
             UrGhastCombatMode mode) {
         state.mode = mode;
         state.modeTicks = 0;
-        state.visitedPatrolPoints = 0;
         state.hasPatrolDestination = false;
         state.action = UrGhastActionState.NORMAL;
         state.actionTicks = 0;
@@ -221,8 +257,7 @@ public final class UrGhastCombat {
 
     private static void setTantrumForMode(
             UrGhast ghast, UrGhastCombatState state) {
-        boolean shouldBeInTantrum = state.offensiveModeUnlocked
-                && state.mode == UrGhastCombatMode.OFFENSIVE;
+        boolean shouldBeInTantrum = state.mode == UrGhastCombatMode.OFFENSIVE;
         if (ghast.isInTantrum() != shouldBeInTantrum) {
             ghast.setInTantrum(shouldBeInTantrum);
         }
@@ -270,7 +305,6 @@ public final class UrGhastCombat {
             return;
         }
         state.hasPatrolDestination = false;
-        state.visitedPatrolPoints++;
     }
 
     private static void chaseTarget(UrGhast ghast) {
@@ -313,7 +347,7 @@ public final class UrGhastCombat {
         if (state.actionTicks < state.actionDuration) {
             return;
         }
-        fireGiantFireballs(ghast, target);
+        fireGiantFireballs(ghast);
         state.fireballCooldown = BossRefactorTwilightForestConfig.UR_GHAST
                 .fireballCooldownTicks.get();
         finishAction(ghast, state);
@@ -357,7 +391,7 @@ public final class UrGhastCombat {
         ghast.setDeltaMovement(Vec3.ZERO);
         LivingEntity target = retainableTarget(ghast);
         if (target != null) {
-            fireGiantFireballs(ghast, target);
+            fireGiantFireballs(ghast);
             state.fireballCooldown = BossRefactorTwilightForestConfig.UR_GHAST
                     .fireballCooldownTicks.get();
         }
@@ -397,45 +431,10 @@ public final class UrGhastCombat {
         clearMistTelegraphs(ghast);
     }
 
-    private static void fireGiantFireballs(
-            UrGhast ghast, LivingEntity target) {
+    private static void fireGiantFireballs(UrGhast ghast) {
         ghast.playSound(
                 ghast.getFireSound(), 10.0F, ghast.getVoicePitch());
-        int fireballCount = ghast.isInTantrum() ? 2 : 1;
-        Vec3 ghastCenter = new Vec3(
-                ghast.getX(),
-                ghast.getY() + ghast.getBbHeight() * 0.5,
-                ghast.getZ());
-        Vec3 targetCenter = new Vec3(
-                target.getX(),
-                target.getBoundingBox().minY + target.getBbHeight() * 0.5,
-                target.getZ());
-        Vec3 direction = targetCenter.subtract(ghastCenter);
-        if (direction.lengthSqr() < 1.0E-8) {
-            direction = ghast.getViewVector(1.0F);
-        }
-        direction = direction.normalize();
-        Vec3 perpendicular = new Vec3(-direction.z, 0.0, direction.x);
-        if (perpendicular.lengthSqr() > 1.0E-8) {
-            perpendicular = perpendicular.normalize();
-        } else {
-            perpendicular = new Vec3(1.0, 0.0, 0.0);
-        }
-        for (int index = 0; index < fireballCount; index++) {
-            double lateralOffset = fireballCount == 1
-                    ? 0.0
-                    : (index == 0 ? -SECOND_FIREBALL_OFFSET
-                            : SECOND_FIREBALL_OFFSET);
-            Vec3 spawnPosition = ghastCenter
-                    .add(direction.scale(FIREBALL_SPAWN_DISTANCE))
-                    .add(perpendicular.scale(lateralOffset));
-            Vec3 shotDirection = targetCenter.subtract(spawnPosition);
-            UrGhastFireball fireball = new UrGhastFireball(
-                    ghast.level(), ghast,
-                    shotDirection.x, shotDirection.y, shotDirection.z, 1);
-            fireball.setPos(spawnPosition.x, spawnPosition.y, spawnPosition.z);
-            ghast.level().addFreshEntity(fireball);
-        }
+        ghast.spitFireball();
     }
 
     private static void damageMistColumns(

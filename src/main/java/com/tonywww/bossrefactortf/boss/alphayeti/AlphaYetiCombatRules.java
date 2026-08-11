@@ -105,6 +105,10 @@ public final class AlphaYetiCombatRules {
         return (elapsed + 1) % interval == 0;
     }
 
+    public static double blockDestructionMinimumY(double feetY) {
+        return Math.floor(feetY + 1.0E-5);
+    }
+
     public static double fallingIceInitialVelocity(
             double fallHeight, int impactTicks) {
         double height = Math.max(0.0, fallHeight);

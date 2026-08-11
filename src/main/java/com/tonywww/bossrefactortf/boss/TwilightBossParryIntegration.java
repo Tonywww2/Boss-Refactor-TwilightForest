@@ -22,6 +22,16 @@ public final class TwilightBossParryIntegration {
         }
 
         @Override
+        public boolean ensureActive(LivingEntity boss) {
+            return false;
+        }
+
+        @Override
+        public boolean usesExternalProfile(LivingEntity boss) {
+            return false;
+        }
+
+        @Override
         public boolean isParryable(LivingEntity boss) {
             return false;
         }
@@ -70,7 +80,11 @@ public final class TwilightBossParryIntegration {
     public static void install(TwilightBossParryBridge newBridge) {
         bridge = Objects.requireNonNull(newBridge, "newBridge");
         for (EntityType<? extends LivingEntity> entityType : EXTERNAL_LEADERS) {
-            bridge.registerLeaderType(entityType);
+            if (!bridge.registerLeaderType(entityType)) {
+                throw new IllegalStateException(
+                        "Conflicting SenDimS Leader profile for "
+                                + EntityType.getKey(entityType));
+            }
         }
     }
 }

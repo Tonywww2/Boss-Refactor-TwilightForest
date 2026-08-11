@@ -4,6 +4,7 @@ import com.tonywww.bossrefactortf.boss.TwilightBossParryAccess;
 import com.tonywww.bossrefactortf.boss.alphayeti.AlphaYetiCombat;
 import com.tonywww.bossrefactortf.boss.alphayeti.AlphaYetiCombatAccess;
 import com.tonywww.bossrefactortf.boss.alphayeti.AlphaYetiCombatGoal;
+import com.tonywww.bossrefactortf.boss.alphayeti.AlphaYetiCombatRules;
 import com.tonywww.bossrefactortf.boss.alphayeti.AlphaYetiCombatState;
 import com.tonywww.bossrefactortf.config.BossRefactorTwilightForestConfig;
 import com.tonywww.bossrefactortf.telegraph.AttackTelegraph;
@@ -22,11 +23,13 @@ import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.ai.goal.WrappedGoal;
 import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.AABB;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import twilightforest.entity.ai.goal.YetiRampageGoal;
 import twilightforest.entity.ai.goal.YetiTiredGoal;
 import twilightforest.entity.boss.AlphaYeti;
@@ -111,6 +114,21 @@ public abstract class AlphaYetiMixin extends Monster
     private void bossRefactorTF$tickIndependentIce(CallbackInfo callback) {
         AlphaYetiCombat.tickIndependentIce(bossRefactorTF$self());
     }
+
+        @ModifyVariable(
+            method = "destroyBlocksInAABB",
+            at = @At("HEAD"),
+            argsOnly = true,
+            remap = false)
+        private AABB bossRefactorTF$protectSupportBlocks(AABB bounds) {
+        double minimumY = Math.max(
+            bounds.minY,
+            AlphaYetiCombatRules.blockDestructionMinimumY(
+                getBoundingBox().minY));
+        return new AABB(
+            bounds.minX, minimumY, bounds.minZ,
+            bounds.maxX, bounds.maxY, bounds.maxZ);
+        }
 
     @Inject(
             method = {"addAdditionalSaveData", "m_7380_"},

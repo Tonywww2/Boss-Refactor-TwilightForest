@@ -32,6 +32,8 @@ public final class BossRefactorTwilightForest {
         event.enqueueWork(() -> {
             TwilightBossParryIntegration.declareExternalLeaderType(
                     TFEntities.KNIGHT_PHANTOM.get());
+            TwilightBossParryIntegration.declareExternalLeaderType(
+                TFEntities.ALPHA_YETI.get());
             OptionalCompatBootstrap.initialize();
         });
     }

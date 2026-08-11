@@ -76,6 +76,7 @@ public final class BossRefactorTwilightForestConfig {
         public final ForgeConfigSpec.DoubleValue rampageRange;
         public final ForgeConfigSpec.IntValue pursuitRoarTicks;
         public final ForgeConfigSpec.IntValue pursuitDurationTicks;
+        public final ForgeConfigSpec.DoubleValue pursuitSpeedMultiplier;
         public final ForgeConfigSpec.IntValue pursuitDamageIntervalTicks;
         public final ForgeConfigSpec.DoubleValue pursuitHitboxInflation;
         public final ForgeConfigSpec.IntValue pursuitKnockbackIntervalTicks;
@@ -102,10 +103,10 @@ public final class BossRefactorTwilightForestConfig {
                     .define("enabled", true);
             cruiseMinimumTicks = builder.comment(
                             "Minimum cruise duration after a skill, in ticks.")
-                    .defineInRange("cruise_minimum_ticks", 20, 1, 1200);
+                    .defineInRange("cruise_minimum_ticks", 15, 1, 1200);
             cruiseMaximumTicks = builder.comment(
                             "Maximum cruise duration after a skill, in ticks.")
-                    .defineInRange("cruise_maximum_ticks", 50, 1, 1200);
+                    .defineInRange("cruise_maximum_ticks", 35, 1, 1200);
             restDurationTicks = builder.comment(
                             "Rest duration after reaching three fatigue, in ticks.")
                     .defineInRange("rest_duration_ticks", 200, 1, 2400);
@@ -123,6 +124,9 @@ public final class BossRefactorTwilightForestConfig {
                     .defineInRange("roar_ticks", 20, 1, 1200);
             pursuitDurationTicks = builder.comment("Pursuit duration, in ticks.")
                     .defineInRange("duration_ticks", 120, 1, 2400);
+            pursuitSpeedMultiplier = builder.comment(
+                            "Navigation speed multiplier during pursuit.")
+                    .defineInRange("speed_multiplier", 1.5, 0.0, 20.0);
             pursuitDamageIntervalTicks = builder.comment(
                             "Ticks between 100% attack-damage pulses.")
                     .defineInRange("damage_interval_ticks", 20, 1, 1200);
@@ -195,13 +199,14 @@ public final class BossRefactorTwilightForestConfig {
         public final ForgeConfigSpec.DoubleValue baseAttackDamage;
         public final ForgeConfigSpec.IntValue hurtSoundCooldownTicks;
         public final ForgeConfigSpec.DoubleValue tantrumDamageReduction;
+        public final ForgeConfigSpec.DoubleValue minionSummonHealthIntervalPercent;
         public final ForgeConfigSpec.IntValue modeDurationTicks;
-        public final ForgeConfigSpec.IntValue patrolPointsPerMode;
         public final ForgeConfigSpec.DoubleValue offensiveSpeedMultiplier;
         public final ForgeConfigSpec.DoubleValue offensiveHeightOffset;
         public final ForgeConfigSpec.DoubleValue offensiveTrapDurationMultiplier;
         public final ForgeConfigSpec.IntValue fireballWindupTicks;
         public final ForgeConfigSpec.IntValue fireballCooldownTicks;
+        public final ForgeConfigSpec.DoubleValue fireballVisualScale;
         public final ForgeConfigSpec.DoubleValue fireballDamageMultiplier;
         public final ForgeConfigSpec.DoubleValue fireballExplosionRadius;
         public final ForgeConfigSpec.IntValue fireballIgniteTicks;
@@ -214,6 +219,9 @@ public final class BossRefactorTwilightForestConfig {
         public final ForgeConfigSpec.DoubleValue mistHeight;
         public final ForgeConfigSpec.DoubleValue mistTeleportHeight;
         public final ForgeConfigSpec.IntValue mistParticlesPerColumn;
+        public final ForgeConfigSpec.IntValue tantrumRedSmokeParticlesPerTick;
+        public final ForgeConfigSpec.IntValue tantrumEnergyRingIntervalTicks;
+        public final ForgeConfigSpec.IntValue tantrumEnergyRingParticles;
 
         private UrGhastConfig(ForgeConfigSpec.Builder builder) {
             builder.comment("Ur-Ghast combat takeover settings.")
@@ -229,14 +237,15 @@ public final class BossRefactorTwilightForestConfig {
             tantrumDamageReduction = builder.comment(
                             "Incoming damage fraction prevented while enraged. 0.75 is 75%.")
                     .defineInRange("tantrum_damage_reduction", 0.75, 0.0, 1.0);
+            minionSummonHealthIntervalPercent = builder.comment(
+                            "Maximum-health percentage lost between minion summon waves.")
+                    .defineInRange("minion_summon_health_interval_percent",
+                            6.0, 0.1, 100.0);
 
             builder.comment("Patrol and offensive mode switching.").push("modes");
             modeDurationTicks = builder.comment(
-                            "Maximum duration of each unlocked mode, in ticks.")
+                            "Duration of each mode, in ticks.")
                     .defineInRange("duration_ticks", 400, 1, 12000);
-            patrolPointsPerMode = builder.comment(
-                            "Visited trap positions that end patrol mode early.")
-                    .defineInRange("patrol_points", 4, 1, 64);
             offensiveSpeedMultiplier = builder.comment(
                             "Flight-speed multiplier in offensive mode.")
                     .defineInRange("offensive_speed_multiplier", 1.3, 0.0, 10.0);
@@ -254,6 +263,9 @@ public final class BossRefactorTwilightForestConfig {
             fireballCooldownTicks = builder.comment(
                             "Delay between ordinary fireball attacks, in ticks.")
                     .defineInRange("cooldown_ticks", 60, 1, 2400);
+            fireballVisualScale = builder.comment(
+                            "Client-side visual scale of Ur-Ghast fireballs. Vanilla is 3.0.")
+                    .defineInRange("visual_scale", 9.0, 0.1, 64.0);
             fireballDamageMultiplier = builder.comment(
                             "Center damage multiplier. 1.5 is 150% attack damage.")
                     .defineInRange("damage_multiplier", 1.5, 0.0, 100.0);
@@ -290,6 +302,18 @@ public final class BossRefactorTwilightForestConfig {
             mistParticlesPerColumn = builder.comment(
                             "Crimson mist particles emitted per column update.")
                     .defineInRange("particles_per_column", 8, 1, 128);
+            builder.pop();
+
+            builder.comment("Enraged visual effects.").push("tantrum_visuals");
+            tantrumRedSmokeParticlesPerTick = builder.comment(
+                            "Additional red smoke particles emitted each client tick.")
+                    .defineInRange("red_smoke_particles_per_tick", 4, 0, 64);
+            tantrumEnergyRingIntervalTicks = builder.comment(
+                            "Ticks between red energy rings.")
+                    .defineInRange("energy_ring_interval_ticks", 10, 1, 1200);
+            tantrumEnergyRingParticles = builder.comment(
+                            "Particles in each red energy ring.")
+                    .defineInRange("energy_ring_particles", 24, 4, 256);
             builder.pop();
 
             builder.pop();

@@ -44,6 +44,9 @@ public final class TwilightForestSenDimsCompat implements TwilightBossParryBridg
             BossRefactorTwilightForest.LOGGER.error(
                     "Unable to register the SenDimS external Leader indicator provider",
                     exception);
+            throw new IllegalStateException(
+                "Unable to register the SenDimS external Leader indicator provider",
+                exception);
         }
     }
 
@@ -58,7 +61,7 @@ public final class TwilightForestSenDimsCompat implements TwilightBossParryBridg
         boolean registered = LeaderApi.registerLeaderType(
                 entityType, LeaderProfile.EXTERNAL);
         if (!registered) {
-            BossRefactorTwilightForest.LOGGER.warn(
+            BossRefactorTwilightForest.LOGGER.error(
                     "A conflicting Leader profile is already registered for {}",
                     EntityType.getKey(entityType));
         }
@@ -66,23 +69,52 @@ public final class TwilightForestSenDimsCompat implements TwilightBossParryBridg
     }
 
     @Override
+    public boolean ensureActive(LivingEntity boss) {
+        if (LeaderApi.getSnapshot(boss)
+                .map(snapshot -> snapshot.profile() == LeaderProfile.EXTERNAL)
+                .orElse(false)) {
+            return true;
+        }
+        if (!TwilightBossParryIntegration.externalLeaderTypes()
+                .contains(boss.getType())) {
+            return LeaderApi.isLeader(boss);
+        }
+        boolean registered = LeaderApi.registerLeader(
+                boss, LeaderProfile.EXTERNAL);
+        if (!registered && !LeaderApi.isLeader(boss)) {
+            BossRefactorTwilightForest.LOGGER.error(
+                    "Unable to activate SenDimS Leader mechanics for {}",
+                    boss.getUUID());
+            return false;
+        }
+        return true;
+    }
+
+    @Override
+    public boolean usesExternalProfile(LivingEntity boss) {
+        return LeaderApi.getSnapshot(boss)
+                .map(snapshot -> snapshot.profile() == LeaderProfile.EXTERNAL)
+                .orElse(false);
+    }
+
+    @Override
     public boolean isParryable(LivingEntity boss) {
-        return LeaderApi.isParryable(boss);
+        return ensureActive(boss) && LeaderApi.isParryable(boss);
     }
 
     @Override
     public boolean isParried(LivingEntity boss) {
-        return LeaderApi.isParried(boss);
+        return ensureActive(boss) && LeaderApi.isParried(boss);
     }
 
     @Override
     public boolean openWindow(LivingEntity boss) {
-        return LeaderApi.openParryWindow(boss);
+        return ensureActive(boss) && LeaderApi.openParryWindow(boss);
     }
 
     @Override
     public boolean closeWindow(LivingEntity boss) {
-        return LeaderApi.closeParryWindow(boss);
+        return ensureActive(boss) && LeaderApi.closeParryWindow(boss);
     }
 
     @SubscribeEvent(priority = EventPriority.LOWEST)

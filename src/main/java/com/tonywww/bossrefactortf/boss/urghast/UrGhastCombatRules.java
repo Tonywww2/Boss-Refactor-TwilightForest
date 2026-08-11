@@ -2,28 +2,41 @@ package com.tonywww.bossrefactortf.boss.urghast;
 
 public final class UrGhastCombatRules {
     public static final int MODE_DURATION_TICKS = 400;
-    public static final int PATROL_POINTS_PER_MODE = 4;
 
     private UrGhastCombatRules() {
     }
 
-    public static boolean offensiveModeUnlocked(
-            float health, float maximumHealth) {
-        return maximumHealth > 0.0F && health < maximumHealth * 0.8F;
+    public static boolean shouldTriggerHalfHealthOffensive(
+            boolean alreadyTriggered, float health, float maximumHealth) {
+        return !alreadyTriggered
+                && maximumHealth > 0.0F
+                && health < maximumHealth * 0.5F;
+    }
+
+    public static boolean shouldSwitchMode(int elapsedTicks) {
+        return shouldSwitchMode(elapsedTicks, MODE_DURATION_TICKS);
     }
 
     public static boolean shouldSwitchMode(
-            int elapsedTicks, int visitedPatrolPoints) {
-        return shouldSwitchMode(
-                elapsedTicks, visitedPatrolPoints,
-                MODE_DURATION_TICKS, PATROL_POINTS_PER_MODE);
+            int elapsedTicks, int modeDurationTicks) {
+        return elapsedTicks >= Math.max(1, modeDurationTicks);
     }
 
-    public static boolean shouldSwitchMode(
-            int elapsedTicks, int visitedPatrolPoints,
-            int modeDurationTicks, int patrolPointsPerMode) {
-        return elapsedTicks >= Math.max(1, modeDurationTicks)
-                || visitedPatrolPoints >= Math.max(1, patrolPointsPerMode);
+    public static boolean crossesMinionSummonThreshold(
+            float healthBefore, float healthAfter,
+            float maximumHealth, double intervalPercent) {
+        if (maximumHealth <= 0.0F || healthAfter >= healthBefore) {
+            return false;
+        }
+        double interval = Math.max(0.1, Math.min(100.0, intervalPercent));
+        double beforePercent = Math.max(0.0,
+                Math.min(100.0, healthBefore / maximumHealth * 100.0));
+        double afterPercent = Math.max(0.0,
+                Math.min(100.0, healthAfter / maximumHealth * 100.0));
+        int nextThresholdIndex = (int) Math.floor(
+                (100.0 - beforePercent) / interval) + 1;
+        double nextThreshold = 100.0 - nextThresholdIndex * interval;
+        return nextThreshold >= 0.0 && afterPercent <= nextThreshold;
     }
 
     public static double tantrumIncomingDamage(double incomingDamage) {
@@ -44,6 +57,10 @@ public final class UrGhastCombatRules {
             double attackDamage, double damageMultiplier) {
         return Math.max(0.0, attackDamage)
                 * Math.max(0.0, damageMultiplier);
+    }
+
+    public static int giantFireballExtraProjectiles(boolean inTantrum) {
+        return inTantrum ? 1 : 0;
     }
 
     public static double mistDamage(double attackDamage) {

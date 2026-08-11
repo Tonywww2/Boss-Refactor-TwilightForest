@@ -5,9 +5,8 @@ import net.minecraft.nbt.CompoundTag;
 public final class UrGhastCombatState {
     UrGhastCombatMode mode = UrGhastCombatMode.PATROL;
     UrGhastActionState action = UrGhastActionState.NORMAL;
-    boolean offensiveModeUnlocked;
+    boolean halfHealthAttackTriggered;
     int modeTicks;
-    int visitedPatrolPoints;
     int patrolIndex;
     boolean hasPatrolDestination;
     double patrolX;
@@ -29,9 +28,8 @@ public final class UrGhastCombatState {
         CompoundTag tag = new CompoundTag();
         tag.putInt("Mode", mode.ordinal());
         tag.putInt("Action", action.ordinal());
-        tag.putBoolean("OffensiveModeUnlocked", offensiveModeUnlocked);
+        tag.putBoolean("HalfHealthAttackTriggered", halfHealthAttackTriggered);
         tag.putInt("ModeTicks", modeTicks);
-        tag.putInt("VisitedPatrolPoints", visitedPatrolPoints);
         tag.putInt("PatrolIndex", patrolIndex);
         tag.putBoolean("HasPatrolDestination", hasPatrolDestination);
         tag.putDouble("PatrolX", patrolX);
@@ -54,9 +52,8 @@ public final class UrGhastCombatState {
     public void load(CompoundTag tag) {
         mode = UrGhastCombatMode.byId(tag.getInt("Mode"));
         action = UrGhastActionState.byId(tag.getInt("Action"));
-        offensiveModeUnlocked = tag.getBoolean("OffensiveModeUnlocked");
+        halfHealthAttackTriggered = tag.getBoolean("HalfHealthAttackTriggered");
         modeTicks = Math.max(0, tag.getInt("ModeTicks"));
-        visitedPatrolPoints = Math.max(0, tag.getInt("VisitedPatrolPoints"));
         patrolIndex = Math.max(0, tag.getInt("PatrolIndex"));
         hasPatrolDestination = tag.getBoolean("HasPatrolDestination");
         patrolX = tag.getDouble("PatrolX");

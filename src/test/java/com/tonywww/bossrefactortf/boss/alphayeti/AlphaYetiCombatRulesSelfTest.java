@@ -39,9 +39,9 @@ public final class AlphaYetiCombatRulesSelfTest {
         checkClose(AlphaYetiCombatRules.fallingIceDamage(12.0), 12.0,
                 "falling ice damage must use 100% attack damage");
 
-        check(AlphaYetiCombatRules.cruiseTicks(20, 50, 0.0) == 20,
+        check(AlphaYetiCombatRules.cruiseTicks(15, 35, 0.0) == 15,
                 "the minimum cruise roll must use the configured minimum");
-        check(AlphaYetiCombatRules.cruiseTicks(20, 50, 1.0) == 50,
+        check(AlphaYetiCombatRules.cruiseTicks(15, 35, 1.0) == 35,
                 "the maximum cruise roll must use the configured maximum");
 
         for (AlphaYetiSkill previous : new AlphaYetiSkill[] {
@@ -78,6 +78,15 @@ public final class AlphaYetiCombatRulesSelfTest {
                 "pursuit damage must occur after one complete second");
         check(AlphaYetiCombatRules.isIntervalPulse(39, 20),
                 "pursuit damage must repeat once per second");
+        checkClose(AlphaYetiCombatRules.blockDestructionMinimumY(64.0),
+                64.0,
+                "block destruction must begin above the support block");
+        checkClose(AlphaYetiCombatRules.blockDestructionMinimumY(63.999999),
+                64.0,
+                "floating-point ground contact must not expose the support block");
+        checkClose(AlphaYetiCombatRules.blockDestructionMinimumY(64.25),
+                64.0,
+                "blocks intersecting the yeti body may still be destroyed");
         double fallingIceVelocity =
                 AlphaYetiCombatRules.fallingIceInitialVelocity(10.0, 20);
         checkClose(AlphaYetiCombatRules.fallingIceTravelDistance(
@@ -117,14 +126,16 @@ public final class AlphaYetiCombatRulesSelfTest {
 
         BossRefactorTwilightForestConfig.AlphaYetiConfig config =
                 BossRefactorTwilightForestConfig.ALPHA_YETI;
-        check(config.cruiseMinimumTicks.getDefault() == 20,
-                "default minimum cruise must be one second");
-        check(config.cruiseMaximumTicks.getDefault() == 50,
-                "default maximum cruise must be 2.5 seconds");
+        check(config.cruiseMinimumTicks.getDefault() == 15,
+                "default minimum cruise must be 0.75 seconds");
+        check(config.cruiseMaximumTicks.getDefault() == 35,
+                "default maximum cruise must be 1.75 seconds");
         check(config.restDurationTicks.getDefault() == 200,
                 "default rest must be ten seconds");
         check(config.pursuitDurationTicks.getDefault() == 120,
                 "default pursuit must be six seconds");
+        checkClose(config.pursuitSpeedMultiplier.getDefault(), 1.5,
+                "default pursuit navigation speed must be 1.5 times");
         check(config.pursuitKnockbackIntervalTicks.getDefault() == 5,
                 "pursuit knockback must pulse every quarter second");
         checkClose(config.pursuitKnockbackStrength.getDefault(), 0.6,

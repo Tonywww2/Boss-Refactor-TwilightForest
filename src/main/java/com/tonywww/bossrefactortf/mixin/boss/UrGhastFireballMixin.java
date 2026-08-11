@@ -1,10 +1,6 @@
 package com.tonywww.bossrefactortf.mixin.boss;
 
 import com.tonywww.bossrefactortf.boss.urghast.UrGhastCombat;
-import com.tonywww.bossrefactortf.config.BossRefactorTwilightForestConfig;
-import com.tonywww.bossrefactortf.telegraph.AttackTelegraph;
-import com.tonywww.bossrefactortf.telegraph.AttackTelegraphAccess;
-import com.tonywww.bossrefactortf.telegraph.AttackTelegraphShape;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.projectile.LargeFireball;
 import net.minecraft.world.level.Level;
@@ -17,8 +13,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import twilightforest.entity.projectile.UrGhastFireball;
 
 @Mixin(value = UrGhastFireball.class, remap = false)
-public abstract class UrGhastFireballMixin extends LargeFireball
-        implements AttackTelegraphAccess {
+public abstract class UrGhastFireballMixin extends LargeFireball {
     protected UrGhastFireballMixin(
             EntityType<? extends LargeFireball> entityType, Level level) {
         super(entityType, level);
@@ -35,23 +30,6 @@ public abstract class UrGhastFireballMixin extends LargeFireball
                 bossRefactorTF$self(), hitResult)) {
             callback.cancel();
         }
-    }
-
-    @Override
-    public AttackTelegraph bossRefactorTF$getAttackTelegraph() {
-        if (!BossRefactorTwilightForestConfig.UR_GHAST.enabled.get()) {
-            return AttackTelegraph.NONE;
-        }
-        return new AttackTelegraph(
-                AttackTelegraphShape.BOX,
-                0.0F, 1.0F, 0.0F, 0.0F,
-                BossRefactorTwilightForestConfig.UR_GHAST
-                        .fireballExplosionRadius.get().floatValue(),
-                1.0F);
-    }
-
-    @Override
-    public void bossRefactorTF$setAttackTelegraph(AttackTelegraph telegraph) {
     }
 
     @Unique

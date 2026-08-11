@@ -7,22 +7,45 @@ public final class UrGhastCombatRulesSelfTest {
     }
 
     public static void main(String[] args) {
-        check(!UrGhastCombatRules.offensiveModeUnlocked(80.0F, 100.0F),
-                "exactly 80% health must remain in patrol mode");
-        check(UrGhastCombatRules.offensiveModeUnlocked(79.99F, 100.0F),
-                "health below 80% must unlock offensive mode");
+        check(!UrGhastCombatRules.shouldTriggerHalfHealthOffensive(
+                        false, 50.0F, 100.0F),
+                "exactly 50% health must remain in patrol mode");
+        check(UrGhastCombatRules.shouldTriggerHalfHealthOffensive(
+                        false, 49.99F, 100.0F),
+                "health below 50% must force offensive mode");
+        check(!UrGhastCombatRules.shouldTriggerHalfHealthOffensive(
+                        true, 25.0F, 100.0F),
+                "the half-health offensive attack must trigger only once");
 
-        check(!UrGhastCombatRules.shouldSwitchMode(399, 3),
-                "a mode must not switch before either boundary");
-        check(UrGhastCombatRules.shouldSwitchMode(400, 0),
+        check(!UrGhastCombatRules.shouldSwitchMode(399),
+                "a mode must not switch before twenty seconds");
+        check(UrGhastCombatRules.shouldSwitchMode(400),
                 "a mode must switch after twenty seconds");
-        check(UrGhastCombatRules.shouldSwitchMode(0, 4),
-                "patrolling four trap positions must switch mode");
+
+        check(UrGhastCombatRules.crossesMinionSummonThreshold(
+                        250.0F, 235.0F, 250.0F, 6.0),
+                "crossing 94% health must summon one minion wave");
+        check(!UrGhastCombatRules.crossesMinionSummonThreshold(
+                        235.0F, 232.0F, 250.0F, 6.0),
+                "damage below an already crossed threshold must not summon");
+        check(UrGhastCombatRules.crossesMinionSummonThreshold(
+                        240.0F, 232.0F, 250.0F, 6.0),
+                "healing above 94% must allow that threshold to trigger again");
+        check(UrGhastCombatRules.crossesMinionSummonThreshold(
+                        250.0F, 200.0F, 250.0F, 6.0),
+                "one hit crossing several thresholds must request one wave");
+        check(!UrGhastCombatRules.crossesMinionSummonThreshold(
+                        220.0F, 221.0F, 250.0F, 6.0),
+                "healing must never summon minions by itself");
 
         checkClose(UrGhastCombatRules.tantrumIncomingDamage(20.0), 5.0,
                 "75% tantrum reduction must leave 25% incoming damage");
         checkClose(UrGhastCombatRules.giantFireballDamage(12.0), 18.0,
                 "giant fireballs must use 150% attack damage");
+        check(UrGhastCombatRules.giantFireballExtraProjectiles(false) == 0,
+                "patrol mode must add no projectile to the primary fireball");
+        check(UrGhastCombatRules.giantFireballExtraProjectiles(true) == 1,
+                "tantrum mode must add one projectile to the primary fireball");
         checkClose(UrGhastCombatRules.mistDamage(12.0), 2.4,
                 "mist must deal 20% attack damage each second");
 
@@ -73,10 +96,10 @@ public final class UrGhastCombatRulesSelfTest {
                 "hurt sounds must have a one-second cooldown");
         checkClose(config.tantrumDamageReduction.getDefault(), 0.75,
                 "enraged damage reduction must default to 75%");
+        checkClose(config.minionSummonHealthIntervalPercent.getDefault(), 6.0,
+                "minion waves must default to six-percent health intervals");
         check(config.modeDurationTicks.getDefault() == 400,
                 "mode duration must default to twenty seconds");
-        check(config.patrolPointsPerMode.getDefault() == 4,
-                "patrol must visit four trap positions");
         checkClose(config.offensiveSpeedMultiplier.getDefault(), 1.3,
                 "offensive flight speed must increase by 30%");
         checkClose(config.offensiveHeightOffset.getDefault(), 4.0,
@@ -87,6 +110,8 @@ public final class UrGhastCombatRulesSelfTest {
                 "fireball windup must default to one second");
         check(config.fireballCooldownTicks.getDefault() == 60,
                 "ordinary fireballs must default to a three-second cooldown");
+        checkClose(config.fireballVisualScale.getDefault(), 9.0,
+                "Ur-Ghast fireballs must render at triple vanilla size");
         checkClose(config.fireballExplosionRadius.getDefault(), 4.0,
                 "fireball explosion AABBs must have four-block half-size");
         check(config.fireballIgniteTicks.getDefault() == 100,
@@ -101,6 +126,12 @@ public final class UrGhastCombatRulesSelfTest {
                 "mist columns must have six-block radius");
         checkClose(config.mistHeight.getDefault(), 24.0,
                 "mist columns must be twenty-four blocks high");
+        check(config.tantrumRedSmokeParticlesPerTick.getDefault() == 4,
+                "tantrum mode must add four red smoke particles per tick");
+        check(config.tantrumEnergyRingIntervalTicks.getDefault() == 10,
+                "tantrum energy rings must repeat every ten ticks");
+        check(config.tantrumEnergyRingParticles.getDefault() == 24,
+                "tantrum energy rings must contain twenty-four particles");
         checkClose(UrGhastCombatRules.giantFireballDamage(
                         config.baseAttackDamage.getDefault(),
                         config.fireballDamageMultiplier.getDefault()),
@@ -113,9 +144,8 @@ public final class UrGhastCombatRulesSelfTest {
         UrGhastCombatState savedState = new UrGhastCombatState();
         savedState.mode = UrGhastCombatMode.OFFENSIVE;
         savedState.action = UrGhastActionState.MIST_DAMAGE;
-        savedState.offensiveModeUnlocked = true;
+        savedState.halfHealthAttackTriggered = true;
         savedState.modeTicks = 123;
-        savedState.visitedPatrolPoints = 2;
         savedState.actionTicks = 45;
         savedState.actionDuration = 100;
         savedState.mistDestinationX = 10.5;
@@ -127,9 +157,9 @@ public final class UrGhastCombatRulesSelfTest {
                 "combat mode must survive an NBT round-trip");
         check(loadedState.action == UrGhastActionState.MIST_DAMAGE,
                 "active mist must survive an NBT round-trip");
-        check(loadedState.offensiveModeUnlocked
+        check(loadedState.halfHealthAttackTriggered
                         && loadedState.modeTicks == 123,
-                "mode unlock and timer must survive reload");
+                "half-health attack state and timer must survive reload");
         checkClose(loadedState.mistDestinationX, 10.5,
                 "mist destination must survive reload");
     }

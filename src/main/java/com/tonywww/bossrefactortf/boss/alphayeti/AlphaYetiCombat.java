@@ -195,8 +195,8 @@ public final class AlphaYetiCombat {
             yeti.setDeltaMovement(0.0, 0.4, 0.0);
             yeti.gameEvent(GameEvent.HIT_GROUND);
         }
-        yeti.destroyBlocksInAABB(yeti.getBoundingBox()
-                .inflate(1.0, 2.0, 1.0).move(0.0, 2.0, 0.0));
+        yeti.destroyBlocksInAABB(
+                blockDestructionBounds(yeti, 1.0, 4.0));
         int remainingTicks = state.stateDuration - state.stateTicks;
         int markedRange = Mth.floor(
                 BossRefactorTwilightForestConfig.ALPHA_YETI.rampageRange.get());
@@ -213,12 +213,7 @@ public final class AlphaYetiCombat {
             yeti.makeRandomBlockFall(
                     Math.max(1, randomBlockRange / 2), 40);
         }
-        access(yeti).bossRefactorTF$setPrimaryTelegraph(new AttackTelegraph(
-                AttackTelegraphShape.CIRCLE,
-                0.0F, 1.0F, 0.0F, 0.0F,
-                BossRefactorTwilightForestConfig.ALPHA_YETI
-                        .rampageRange.get().floatValue(),
-                1.0F));
+        access(yeti).bossRefactorTF$setPrimaryTelegraph(AttackTelegraph.NONE);
         state.stateTicks++;
         if (state.stateTicks >= state.stateDuration) {
             finishSkill(yeti, false);
@@ -257,13 +252,16 @@ public final class AlphaYetiCombat {
             finishSkill(yeti, false);
             return;
         }
-        yeti.getNavigation().moveTo(target, 1.0);
+        yeti.getNavigation().moveTo(
+                target,
+                BossRefactorTwilightForestConfig.ALPHA_YETI
+                        .pursuitSpeedMultiplier.get());
         yeti.getLookControl().setLookAt(
                 target, 30.0F, yeti.getMaxHeadXRot());
         double inflation = BossRefactorTwilightForestConfig.ALPHA_YETI
                 .pursuitHitboxInflation.get();
-        yeti.destroyBlocksInAABB(yeti.getBoundingBox()
-                .inflate(inflation, 1.0, inflation));
+        yeti.destroyBlocksInAABB(
+                blockDestructionBounds(yeti, inflation, 1.0));
         List<LivingEntity> contacts = combatTargets(
                 yeti, yeti.getBoundingBox().inflate(inflation, 0.5, inflation));
         int knockbackInterval = BossRefactorTwilightForestConfig.ALPHA_YETI
@@ -746,6 +744,19 @@ public final class AlphaYetiCombat {
         double deltaZ = entity.getZ() - z;
         return Math.sqrt(deltaX * deltaX + deltaZ * deltaZ);
     }
+
+        private static AABB blockDestructionBounds(
+                        AlphaYeti yeti, double horizontalInflation,
+                        double upwardInflation) {
+                AABB bounds = yeti.getBoundingBox();
+                return new AABB(
+                                bounds.minX - horizontalInflation,
+                                AlphaYetiCombatRules.blockDestructionMinimumY(bounds.minY),
+                                bounds.minZ - horizontalInflation,
+                                bounds.maxX + horizontalInflation,
+                                bounds.maxY + upwardInflation,
+                                bounds.maxZ + horizontalInflation);
+        }
 
     private static AttackTelegraph circleAt(
             double x, double y, double z, float radius, float progress) {

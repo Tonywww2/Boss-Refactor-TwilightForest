@@ -27,13 +27,21 @@ public final class OptionalCompatBootstrap {
                  | IllegalAccessException exception) {
             BossRefactorTwilightForest.LOGGER.error(
                     "Unable to load SenDimS boss compatibility", exception);
+            throw new IllegalStateException(
+                "SenDimS is installed but boss compatibility could not start",
+                exception);
         } catch (InvocationTargetException exception) {
             BossRefactorTwilightForest.LOGGER.error(
                     "SenDimS boss compatibility failed during initialization",
                     exception.getCause());
+            throw new IllegalStateException(
+                "SenDimS boss compatibility failed during initialization",
+                exception.getCause());
         } catch (LinkageError error) {
             BossRefactorTwilightForest.LOGGER.error(
                     "SenDimS boss compatibility has an incompatible API", error);
+            throw new IllegalStateException(
+                "SenDimS boss compatibility has an incompatible API", error);
         }
     }
 }

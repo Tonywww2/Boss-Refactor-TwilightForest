@@ -8,6 +8,10 @@ public interface TwilightBossParryBridge {
 
     boolean registerLeaderType(EntityType<? extends LivingEntity> entityType);
 
+    boolean ensureActive(LivingEntity boss);
+
+    boolean usesExternalProfile(LivingEntity boss);
+
     boolean isParryable(LivingEntity boss);
 
     boolean isParried(LivingEntity boss);

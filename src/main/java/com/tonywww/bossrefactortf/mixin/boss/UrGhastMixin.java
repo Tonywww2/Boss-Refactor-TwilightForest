@@ -3,6 +3,7 @@ package com.tonywww.bossrefactortf.mixin.boss;
 import com.tonywww.bossrefactortf.boss.urghast.UrGhastCombat;
 import com.tonywww.bossrefactortf.boss.urghast.UrGhastCombatAccess;
 import com.tonywww.bossrefactortf.boss.urghast.UrGhastCombatGoal;
+import com.tonywww.bossrefactortf.boss.urghast.UrGhastCombatRules;
 import com.tonywww.bossrefactortf.boss.urghast.UrGhastCombatState;
 import com.tonywww.bossrefactortf.config.BossRefactorTwilightForestConfig;
 import com.tonywww.bossrefactortf.telegraph.AttackTelegraph;
@@ -61,6 +62,8 @@ public abstract class UrGhastMixin extends CarminiteGhastguard
     @Unique
     private final UrGhastCombatState bossRefactorTF$combatState =
             new UrGhastCombatState();
+    @Unique
+    private float bossRefactorTF$healthBeforeDamage;
 
     protected UrGhastMixin(
             EntityType<? extends CarminiteGhastguard> entityType, Level level) {
@@ -113,14 +116,44 @@ public abstract class UrGhastMixin extends CarminiteGhastguard
     }
 
     @Inject(
+            method = {"aiStep", "m_8107_"},
+            at = @At("TAIL"),
+            remap = false)
+    private void bossRefactorTF$enhanceTantrumVisuals(CallbackInfo callback) {
+        UrGhastCombat.tickTantrumVisuals(bossRefactorTF$self());
+    }
+
+    @Inject(
             method = {"hurt", "m_6469_"},
             at = @At("HEAD"),
             remap = false)
     private void bossRefactorTF$disableVanillaDamagePhaseSwitch(
             DamageSource source, float amount,
             CallbackInfoReturnable<Boolean> callback) {
+        bossRefactorTF$healthBeforeDamage = getHealth();
         if (BossRefactorTwilightForestConfig.UR_GHAST.enabled.get()) {
             damageUntilNextPhase = Float.POSITIVE_INFINITY;
+        }
+    }
+
+    @Inject(
+            method = {"hurt", "m_6469_"},
+            at = @At("RETURN"),
+            remap = false)
+    private void bossRefactorTF$summonMinionsByHealthPercentage(
+            DamageSource source, float amount,
+            CallbackInfoReturnable<Boolean> callback) {
+        if (!BossRefactorTwilightForestConfig.UR_GHAST.enabled.get()
+                || level().isClientSide()
+                || isDeadOrDying()
+                || !Boolean.TRUE.equals(callback.getReturnValue())) {
+            return;
+        }
+        if (UrGhastCombatRules.crossesMinionSummonThreshold(
+                bossRefactorTF$healthBeforeDamage, getHealth(), getMaxHealth(),
+                BossRefactorTwilightForestConfig.UR_GHAST
+                        .minionSummonHealthIntervalPercent.get())) {
+            bossRefactorTF$self().spawnGhastsAtTraps();
         }
     }
 
@@ -137,6 +170,19 @@ public abstract class UrGhastMixin extends CarminiteGhastguard
         return reduction >= 1.0
                 ? Float.POSITIVE_INFINITY
                 : (float) (1.0 / (1.0 - reduction));
+    }
+
+    @ModifyConstant(
+            method = "spitFireball",
+            constant = @Constant(intValue = 2),
+            require = 1,
+            remap = false)
+    private int bossRefactorTF$limitExtraFireballs(int original) {
+        if (!BossRefactorTwilightForestConfig.UR_GHAST.enabled.get()) {
+            return original;
+        }
+        return UrGhastCombatRules.giantFireballExtraProjectiles(
+                bossRefactorTF$self().isInTantrum());
     }
 
     @Inject(
@@ -194,18 +240,6 @@ public abstract class UrGhastMixin extends CarminiteGhastguard
             UrGhast ghast, @Nullable LivingEntity target) {
         if (!UrGhastCombat.isOffensive(ghast) || target != null) {
             ghast.setTarget(target);
-        }
-    }
-
-    @Inject(
-            method = "doTantrumDamageEffects",
-            at = @At("HEAD"),
-            cancellable = true,
-            remap = false)
-    private void bossRefactorTF$disableVanillaTantrumDamage(
-            CallbackInfo callback) {
-        if (BossRefactorTwilightForestConfig.UR_GHAST.enabled.get()) {
-            callback.cancel();
         }
     }
 

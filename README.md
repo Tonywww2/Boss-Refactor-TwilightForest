@@ -26,13 +26,17 @@ marked falling-ice rings reaching 12 blocks. Below half health, ordinary attacks
 and every skill windup queue an independent marked falling-ice strike.
 
 Alpha Yeti timings, ranges, knockback, falling-ice density, and the random
-20-50 tick post-skill cruise are configured under `alpha_yeti` in
+15-35 tick post-skill cruise are configured under `alpha_yeti` in
 `config/bossrefactortf-common.toml`.
 
-The Ur-Ghast fight uses alternating patrol and offensive modes after health
-first falls below 80%. Offensive mode keeps the boss enraged, increases flight
-speed by 30%, chases at a melee-accessible height, and halves ghast-trap control
-time. Giant fireballs retain Twilight Forest's projectile and renderer but use
+The Ur-Ghast fight alternates between 20-second patrol and offensive modes from
+the start. The first time health falls below 50%, it immediately resets to
+offensive mode and starts an Arsenic-Lead Mist. Offensive mode keeps the boss
+enraged, increases flight speed by 30%, chases at a melee-accessible height,
+halves ghast-trap control time, and retains Twilight Forest's original tantrum
+tear rain. Each six-percent maximum-health loss threshold summons one original
+minion wave, and healing above a threshold allows it to trigger again. Giant
+fireballs retain Twilight Forest's projectile and renderer but use
 a moving red four-block AABB marker, custom 150% attack-damage falloff, and no
 vanilla explosion. Offensive mode also adds two telegraphed crimson mist columns
 with a harmless windup, teleport follow-up, and one 20% attack-damage pulse per
@@ -86,6 +90,10 @@ mod is installed.
 6. Open and close parry windows through the integration bridge.
 
 SenDimS 1.0.19 already has compatibility for Naga, Minoshroom, Knight Phantom,
-and Alpha Yeti. Do not register those types as new external Leaders without a
-boss-specific compatibility review. Never write SenDimS internal NBT directly;
-use `LeaderApi` and its public events through `compat/sendims`.
+and Alpha Yeti. This mod deliberately registers Knight Phantom and Alpha Yeti as
+external Leaders after a boss-specific compatibility review, so SenDimS owns
+their parry state and five-times parried damage while this mod owns their combat
+state machines. Because SenDimS does not initialize health for external Leaders,
+this mod applies the same `MULTIPLY_TOTAL +5.0` modifier, producing six-times
+maximum health. Never write SenDimS internal NBT directly; use `LeaderApi` and
+its public events through `compat/sendims`.
