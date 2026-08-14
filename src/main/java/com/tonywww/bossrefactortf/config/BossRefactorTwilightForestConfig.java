@@ -8,6 +8,9 @@ public final class BossRefactorTwilightForestConfig {
         public static final KnightPhantomConfig KNIGHT_PHANTOM;
         public static final AlphaYetiConfig ALPHA_YETI;
         public static final UrGhastConfig UR_GHAST;
+                public static final NagaConfig NAGA;
+                public static final LichConfig LICH;
+        public static final HydraConfig HYDRA;
 
     static {
         ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
@@ -15,6 +18,9 @@ public final class BossRefactorTwilightForestConfig {
         KNIGHT_PHANTOM = new KnightPhantomConfig(builder);
         ALPHA_YETI = new AlphaYetiConfig(builder);
         UR_GHAST = new UrGhastConfig(builder);
+        NAGA = new NagaConfig(builder);
+                LICH = new LichConfig(builder);
+        HYDRA = new HydraConfig(builder);
         COMMON_SPEC = builder.build();
     }
 
@@ -254,6 +260,7 @@ public final class BossRefactorTwilightForestConfig {
                     .defineInRange("offensive_height_offset", 4.0, -32.0, 64.0);
             offensiveTrapDurationMultiplier = builder.comment(
                             "Fraction of trap control retained in offensive mode.")
+
                     .defineInRange("offensive_trap_duration_multiplier", 0.5, 0.0, 1.0);
             builder.pop();
 
@@ -316,6 +323,507 @@ public final class BossRefactorTwilightForestConfig {
                     .defineInRange("energy_ring_particles", 24, 4, 256);
             builder.pop();
 
+            builder.pop();
+        }
+    }
+
+    public static final class HydraConfig {
+        public final ForgeConfigSpec.BooleanValue enabled;
+        public final ForgeConfigSpec.DoubleValue baseAttackDamage;
+        public final ForgeConfigSpec.IntValue ordinaryAttackIntervalTicks;
+        public final ForgeConfigSpec.IntValue recoveryTicks;
+        public final ForgeConfigSpec.IntValue followUpDelayTicks;
+        public final ForgeConfigSpec.IntValue shieldCooldownTicks;
+        public final ForgeConfigSpec.IntValue parryFeedbackTicks;
+        public final ForgeConfigSpec.DoubleValue meleeVerticalRange;
+        public final ForgeConfigSpec.IntValue biteWindupTicks;
+        public final ForgeConfigSpec.DoubleValue biteRange;
+        public final ForgeConfigSpec.DoubleValue biteHalfAngleDegrees;
+        public final ForgeConfigSpec.DoubleValue biteDamageMultiplier;
+        public final ForgeConfigSpec.IntValue sweepWindupTicks;
+        public final ForgeConfigSpec.DoubleValue sweepRadius;
+        public final ForgeConfigSpec.DoubleValue sweepHalfAngleDegrees;
+        public final ForgeConfigSpec.DoubleValue sweepDamageMultiplier;
+        public final ForgeConfigSpec.IntValue slamWindupTicks;
+        public final ForgeConfigSpec.DoubleValue slamRadius;
+        public final ForgeConfigSpec.DoubleValue slamDamageMultiplier;
+        public final ForgeConfigSpec.IntValue slamImpactParticles;
+        public final ForgeConfigSpec.IntValue fireLordInitialDelayTicks;
+        public final ForgeConfigSpec.IntValue fireLordCooldownTicks;
+        public final ForgeConfigSpec.IntValue fireLordDurationTicks;
+        public final ForgeConfigSpec.DoubleValue fireLordMaximumRadius;
+        public final ForgeConfigSpec.DoubleValue fireLordGroundDistance;
+        public final ForgeConfigSpec.IntValue fireLordDamageIntervalTicks;
+        public final ForgeConfigSpec.DoubleValue fireLordDamageMultiplier;
+        public final ForgeConfigSpec.IntValue fireIgniteTicks;
+        public final ForgeConfigSpec.IntValue fireLordBeamIntervalTicks;
+        public final ForgeConfigSpec.IntValue fireLordBeamCount;
+        public final ForgeConfigSpec.DoubleValue fireLordBeamScatter;
+        public final ForgeConfigSpec.DoubleValue fireLordBeamRadius;
+        public final ForgeConfigSpec.IntValue fireLordBeamWindupTicks;
+        public final ForgeConfigSpec.IntValue secondPhaseBeamIntervalTicks;
+        public final ForgeConfigSpec.IntValue secondPhaseBeamCount;
+        public final ForgeConfigSpec.DoubleValue secondPhaseBeamScatter;
+        public final ForgeConfigSpec.DoubleValue secondPhaseBeamRadius;
+        public final ForgeConfigSpec.IntValue secondPhaseBeamWindupTicks;
+        public final ForgeConfigSpec.DoubleValue beamDamageMultiplier;
+        public final ForgeConfigSpec.DoubleValue fireVerticalRange;
+        public final ForgeConfigSpec.IntValue fireLordParticlesPerHead;
+        public final ForgeConfigSpec.IntValue beamParticlesPerTick;
+        public final ForgeConfigSpec.IntValue beamImpactParticles;
+        public final ForgeConfigSpec.IntValue beamLavaParticles;
+        public final ForgeConfigSpec.DoubleValue beamVisualHeight;
+
+        private HydraConfig(ForgeConfigSpec.Builder builder) {
+            builder.comment("Hydra combat takeover settings.").push("hydra");
+            enabled = builder.comment("Enable the complete Hydra combat takeover.")
+                    .define("enabled", true);
+            baseAttackDamage = builder.comment(
+                            "Base attack damage used by all custom Hydra attacks.")
+                    .defineInRange("base_attack_damage", 16.0, 0.0, 1000.0);
+            ordinaryAttackIntervalTicks = builder.comment(
+                            "Delay before the next primary ordinary attack.")
+                    .defineInRange("ordinary_attack_interval_ticks", 40, 0, 12000);
+            recoveryTicks = builder.comment("Recovery after an attack chain.")
+                    .defineInRange("recovery_ticks", 20, 0, 12000);
+            followUpDelayTicks = builder.comment(
+                            "Phase-two delay before another active head follows up.")
+                    .defineInRange("follow_up_delay_ticks", 20, 0, 12000);
+            shieldCooldownTicks = builder.comment(
+                            "Shield cooldown after blocking an ordinary melee attack.")
+                    .defineInRange("shield_cooldown_ticks", 100, 0, 12000);
+            parryFeedbackTicks = builder.comment(
+                            "Feedback duration returned to SenDimS after a valid parry.")
+                    .defineInRange("parry_feedback_ticks", 10, 1, 1200);
+            meleeVerticalRange = builder.comment(
+                            "Vertical range of ordinary melee damage checks.")
+                    .defineInRange("melee_vertical_range", 4.0, 0.0, 64.0);
+
+            builder.comment("Bite.").push("bite");
+            biteWindupTicks = builder.defineInRange("windup_ticks", 20, 1, 1200);
+            biteRange = builder.defineInRange("range", 6.0, 0.1, 64.0);
+            biteHalfAngleDegrees = builder.comment(
+                            "Half-angle of the bite arc.")
+                    .defineInRange("half_angle_degrees", 35.0, 1.0, 180.0);
+            biteDamageMultiplier = builder.defineInRange(
+                    "damage_multiplier", 1.0, 0.0, 100.0);
+            builder.pop();
+
+            builder.comment("Head sweep.").push("sweep");
+            sweepWindupTicks = builder.defineInRange("windup_ticks", 30, 1, 1200);
+            sweepRadius = builder.defineInRange("radius", 8.0, 0.1, 64.0);
+            sweepHalfAngleDegrees = builder.defineInRange(
+                    "half_angle_degrees", 90.0, 1.0, 180.0);
+            sweepDamageMultiplier = builder.defineInRange(
+                    "damage_multiplier", 1.0, 0.0, 100.0);
+            builder.pop();
+
+            builder.comment("Head slam.").push("slam");
+            slamWindupTicks = builder.defineInRange("windup_ticks", 40, 1, 1200);
+            slamRadius = builder.defineInRange("radius", 5.0, 0.1, 64.0);
+            slamDamageMultiplier = builder.defineInRange(
+                    "damage_multiplier", 1.5, 0.0, 100.0);
+            slamImpactParticles = builder.defineInRange(
+                    "impact_particles", 12, 0, 256);
+            builder.pop();
+
+            builder.comment("Fire Lord.").push("fire_lord");
+            fireLordInitialDelayTicks = builder.defineInRange(
+                    "initial_delay_ticks", 200, 0, 12000);
+            fireLordCooldownTicks = builder.defineInRange(
+                    "cooldown_ticks", 600, 1, 12000);
+            fireLordDurationTicks = builder.defineInRange(
+                    "duration_ticks", 200, 1, 12000);
+            fireLordMaximumRadius = builder.defineInRange(
+                    "maximum_radius", 20.0, 0.1, 128.0);
+            fireLordGroundDistance = builder.comment(
+                            "Preferred distance of the locked ground center in front of the Hydra.")
+                    .defineInRange("ground_distance", 10.0, 0.0, 128.0);
+            fireLordDamageIntervalTicks = builder.defineInRange(
+                    "damage_interval_ticks", 20, 1, 1200);
+            fireLordDamageMultiplier = builder.defineInRange(
+                    "damage_multiplier", 0.5, 0.0, 100.0);
+            fireIgniteTicks = builder.defineInRange(
+                    "ignite_ticks", 100, 0, 12000);
+            fireLordParticlesPerHead = builder.comment(
+                            "Golden-red flame particles emitted by each active head per tick.")
+                    .defineInRange("particles_per_head", 4, 0, 128);
+            builder.pop();
+
+            builder.comment("Fire Lord flame beams.").push("fire_lord_beams");
+            fireLordBeamIntervalTicks = builder.defineInRange(
+                    "interval_ticks", 20, 1, 1200);
+            fireLordBeamCount = builder.defineInRange("count", 2, 0, 128);
+            fireLordBeamScatter = builder.defineInRange(
+                    "scatter", 14.0, 0.0, 128.0);
+            fireLordBeamRadius = builder.defineInRange(
+                    "radius", 2.0, 0.1, 64.0);
+            fireLordBeamWindupTicks = builder.defineInRange(
+                    "windup_ticks", 20, 1, 1200);
+            builder.pop();
+
+            builder.comment("Phase-two flame beams.").push("second_phase_beams");
+            secondPhaseBeamIntervalTicks = builder.defineInRange(
+                    "interval_ticks", 160, 1, 12000);
+            secondPhaseBeamCount = builder.defineInRange("count", 3, 0, 128);
+            secondPhaseBeamScatter = builder.defineInRange(
+                    "scatter", 16.0, 0.0, 128.0);
+            secondPhaseBeamRadius = builder.defineInRange(
+                    "radius", 2.0, 0.1, 64.0);
+            secondPhaseBeamWindupTicks = builder.defineInRange(
+                    "windup_ticks", 20, 1, 1200);
+            builder.pop();
+
+            builder.comment("Shared flame-beam effects.").push("beams");
+            beamDamageMultiplier = builder.defineInRange(
+                    "damage_multiplier", 1.0, 0.0, 100.0);
+            fireVerticalRange = builder.comment(
+                            "Vertical range of Fire Lord and flame-beam damage checks.")
+                    .defineInRange("vertical_range", 6.0, 0.0, 64.0);
+            beamParticlesPerTick = builder.comment(
+                            "Full-bright golden-red particles emitted per pending beam tick.")
+                    .defineInRange("particles_per_tick", 8, 0, 256);
+            beamImpactParticles = builder.defineInRange(
+                    "impact_particles", 48, 0, 1024);
+            beamLavaParticles = builder.defineInRange(
+                    "lava_particles", 2, 0, 256);
+            beamVisualHeight = builder.comment(
+                            "Visible height of each pending flame beam.")
+                    .defineInRange("visual_height", 8.0, 0.0, 128.0);
+            builder.pop();
+            builder.pop();
+        }
+    }
+
+    public static final class LichConfig {
+        public final ForgeConfigSpec.BooleanValue enabled;
+        public final ForgeConfigSpec.IntValue secondPhaseShieldLayers;
+        public final ForgeConfigSpec.DoubleValue shieldDamageReductionPerLayer;
+        public final ForgeConfigSpec.DoubleValue meleeMagicDamageMultiplier;
+        public final ForgeConfigSpec.IntValue meleeCooldownTicks;
+        public final ForgeConfigSpec.IntValue shieldBashWindupTicks;
+        public final ForgeConfigSpec.IntValue shieldBashCooldownTicks;
+        public final ForgeConfigSpec.DoubleValue shieldBashLength;
+        public final ForgeConfigSpec.DoubleValue shieldBashHalfWidth;
+        public final ForgeConfigSpec.DoubleValue shieldBashHeight;
+        public final ForgeConfigSpec.DoubleValue shieldBashDamageMultiplier;
+        public final ForgeConfigSpec.DoubleValue shieldBashShieldMultiplier;
+        public final ForgeConfigSpec.DoubleValue shieldBashHorizontalKnockback;
+        public final ForgeConfigSpec.DoubleValue shieldBashVerticalVelocity;
+        public final ForgeConfigSpec.IntValue shieldBashStunTicks;
+        public final ForgeConfigSpec.IntValue shieldBashParryFeedbackTicks;
+        public final ForgeConfigSpec.IntValue summonWindupTicks;
+        public final ForgeConfigSpec.IntValue summonCooldownTicks;
+        public final ForgeConfigSpec.IntValue cloneLifetimeTicks;
+        public final ForgeConfigSpec.IntValue cruiseMinimumTicks;
+        public final ForgeConfigSpec.IntValue cruiseMaximumTicks;
+        public final ForgeConfigSpec.DoubleValue meleeSpeed;
+
+        private LichConfig(ForgeConfigSpec.Builder builder) {
+            builder.comment("Lich combat takeover settings.").push("lich");
+            enabled = builder.comment("Enable the complete Lich combat takeover.")
+                    .define("enabled", true);
+
+            builder.comment("Second phase shields.").push("second_phase");
+            secondPhaseShieldLayers = builder.comment(
+                            "Shield layers granted when the Lich first enters phase two.")
+                    .defineInRange("shield_layers", 5, 0, 100);
+            shieldDamageReductionPerLayer = builder.comment(
+                            "Incoming damage fraction prevented by each active shield layer. 0.1 is 10%.")
+                    .defineInRange("shield_damage_reduction_per_layer", 0.1, 0.0, 1.0);
+            meleeMagicDamageMultiplier = builder.comment(
+                            "Attack-damage multiplier for second-phase melee magic. 0.2 is 20% damage.")
+                    .defineInRange("melee_magic_damage_multiplier", 0.2, 0.0, 100.0);
+            meleeCooldownTicks = builder.comment(
+                            "Delay between ordinary second-phase melee attacks, in ticks.")
+                    .defineInRange("melee_cooldown_ticks", 20, 0, 1200);
+            builder.pop();
+
+            builder.comment("Shield bash.").push("shield_bash");
+            shieldBashWindupTicks = builder.comment("Shield bash warning duration, in ticks.")
+                    .defineInRange("windup_ticks", 30, 0, 1200);
+            shieldBashCooldownTicks = builder.comment("Delay between shield bashes, in ticks.")
+                    .defineInRange("cooldown_ticks", 120, 1, 12000);
+            shieldBashLength = builder.comment("Forward length of the shield bash hit rectangle.")
+                    .defineInRange("length", 8.0, 0.1, 128.0);
+            shieldBashHalfWidth = builder.comment("Half-width of the shield bash hit rectangle.")
+                    .defineInRange("half_width", 3.0, 0.1, 64.0);
+            shieldBashHeight = builder.comment("Vertical height of the shield bash hit rectangle.")
+                    .defineInRange("height", 4.0, 0.1, 64.0);
+            shieldBashDamageMultiplier = builder.comment(
+                            "Attack-damage multiplier for a shield bash. 1.5 is 150% damage.")
+                    .defineInRange("damage_multiplier", 1.5, 0.0, 100.0);
+            shieldBashShieldMultiplier = builder.comment(
+                            "Additional shield bash multiplier after shield consumption. 1.5 makes 225% total damage.")
+                    .defineInRange("shield_multiplier", 1.5, 0.0, 100.0);
+            shieldBashHorizontalKnockback = builder.comment(
+                            "Horizontal knockback applied by a shield bash.")
+                    .defineInRange("horizontal_knockback", 1.5, 0.0, 16.0);
+            shieldBashVerticalVelocity = builder.comment(
+                            "Minimum upward velocity applied by a shield bash.")
+                    .defineInRange("vertical_velocity", 0.5, 0.0, 16.0);
+            shieldBashStunTicks = builder.comment(
+                            "Lich stun duration after a shield bash is blocked or parried, in ticks.")
+                    .defineInRange("stun_ticks", 40, 1, 1200);
+            shieldBashParryFeedbackTicks = builder.comment(
+                            "Feedback duration returned after parrying a shield bash, in ticks.")
+                    .defineInRange("parry_feedback_ticks", 40, 1, 1200);
+            builder.pop();
+
+            builder.comment("Summoning and melee cruise.").push("summoning");
+            summonWindupTicks = builder.comment("Clone summon warning duration, in ticks.")
+                    .defineInRange("windup_ticks", 40, 1, 1200);
+            summonCooldownTicks = builder.comment("Delay between clone summons, in ticks.")
+                    .defineInRange("cooldown_ticks", 400, 1, 12000);
+            cloneLifetimeTicks = builder.comment("Maximum clone lifetime, in ticks.")
+                    .defineInRange("clone_lifetime_ticks", 300, 1, 12000);
+            cruiseMinimumTicks = builder.comment("Minimum melee cruise duration between skills, in ticks.")
+                    .defineInRange("cruise_minimum_ticks", 40, 1, 1200);
+            cruiseMaximumTicks = builder.comment("Maximum melee cruise duration between skills, in ticks.")
+                    .defineInRange("cruise_maximum_ticks", 80, 1, 1200);
+            meleeSpeed = builder.comment("Navigation speed during ordinary melee cruise.")
+                    .defineInRange("melee_speed", 0.75, 0.0, 20.0);
+            builder.pop();
+            builder.pop();
+        }
+    }
+
+    public static final class NagaConfig {
+        public final ForgeConfigSpec.BooleanValue enabled;
+        public final ForgeConfigSpec.IntValue cruiseMinimumTicks;
+        public final ForgeConfigSpec.IntValue cruiseMaximumTicks;
+        public final ForgeConfigSpec.DoubleValue cruiseSpeed;
+        public final ForgeConfigSpec.IntValue shieldCooldownTicks;
+        public final ForgeConfigSpec.IntValue stunDurationTicks;
+        public final ForgeConfigSpec.IntValue parryFeedbackTicks;
+        public final ForgeConfigSpec.IntValue windupParticlesPerTick;
+        public final ForgeConfigSpec.IntValue pounceWindupTicks;
+        public final ForgeConfigSpec.IntValue pounceFlightTicks;
+        public final ForgeConfigSpec.DoubleValue pounceImpactRadius;
+        public final ForgeConfigSpec.DoubleValue pounceVerticalRange;
+        public final ForgeConfigSpec.DoubleValue pounceDamageMultiplier;
+        public final ForgeConfigSpec.DoubleValue pounceHorizontalSpeed;
+        public final ForgeConfigSpec.DoubleValue pounceVerticalSpeed;
+        public final ForgeConfigSpec.IntValue pounceCooldownTicks;
+        public final ForgeConfigSpec.IntValue tailWindupTicks;
+        public final ForgeConfigSpec.IntValue tailDurationTicks;
+        public final ForgeConfigSpec.DoubleValue tailRadius;
+        public final ForgeConfigSpec.DoubleValue tailVerticalRange;
+        public final ForgeConfigSpec.DoubleValue tailHalfAngleDegrees;
+        public final ForgeConfigSpec.DoubleValue tailDamageMultiplier;
+        public final ForgeConfigSpec.IntValue tailCooldownTicks;
+        public final ForgeConfigSpec.DoubleValue bodySegmentSpacing;
+        public final ForgeConfigSpec.DoubleValue bodyTrailSampleSpacing;
+        public final ForgeConfigSpec.DoubleValue bodyTrailTeleportResetDistance;
+        public final ForgeConfigSpec.DoubleValue bodyTailCurveDegrees;
+        public final ForgeConfigSpec.IntValue bodyPoseBlendTicks;
+        public final ForgeConfigSpec.IntValue venomWindupTicks;
+        public final ForgeConfigSpec.DoubleValue venomLength;
+        public final ForgeConfigSpec.DoubleValue venomWidth;
+        public final ForgeConfigSpec.DoubleValue venomProjectileSpeed;
+        public final ForgeConfigSpec.DoubleValue venomProjectileRadius;
+        public final ForgeConfigSpec.DoubleValue venomInitialDamageMultiplier;
+        public final ForgeConfigSpec.IntValue venomCooldownTicks;
+        public final ForgeConfigSpec.IntValue venomCloudDurationTicks;
+        public final ForgeConfigSpec.DoubleValue venomCloudRadius;
+        public final ForgeConfigSpec.DoubleValue venomCloudVerticalRange;
+        public final ForgeConfigSpec.IntValue venomDamageIntervalTicks;
+        public final ForgeConfigSpec.DoubleValue venomDamageMultiplier;
+        public final ForgeConfigSpec.IntValue venomPoisonDurationTicks;
+        public final ForgeConfigSpec.IntValue venomPoisonAmplifier;
+        public final ForgeConfigSpec.IntValue venomProjectileParticles;
+        public final ForgeConfigSpec.IntValue venomProjectileMistParticles;
+        public final ForgeConfigSpec.IntValue venomProjectileSplashParticles;
+        public final ForgeConfigSpec.IntValue venomProjectileGlowParticles;
+        public final ForgeConfigSpec.IntValue venomCloudParticles;
+        public final ForgeConfigSpec.IntValue venomCloudMistParticles;
+        public final ForgeConfigSpec.IntValue venomCloudBubbleParticles;
+        public final ForgeConfigSpec.IntValue venomCloudSplashParticles;
+        public final ForgeConfigSpec.IntValue venomCloudGlowParticles;
+        public final ForgeConfigSpec.IntValue venomPrimaryRed;
+        public final ForgeConfigSpec.IntValue venomPrimaryGreen;
+        public final ForgeConfigSpec.IntValue venomPrimaryBlue;
+        public final ForgeConfigSpec.IntValue venomSecondaryRed;
+        public final ForgeConfigSpec.IntValue venomSecondaryGreen;
+        public final ForgeConfigSpec.IntValue venomSecondaryBlue;
+        public final ForgeConfigSpec.DoubleValue venomPrimaryParticleScale;
+        public final ForgeConfigSpec.DoubleValue venomSecondaryParticleScale;
+        public final ForgeConfigSpec.DoubleValue venomProjectileCoreSpread;
+        public final ForgeConfigSpec.DoubleValue venomProjectileMistSpread;
+        public final ForgeConfigSpec.DoubleValue venomProjectileParticleSpeed;
+        public final ForgeConfigSpec.DoubleValue venomCloudCoreSpread;
+        public final ForgeConfigSpec.DoubleValue venomCloudMistSpread;
+        public final ForgeConfigSpec.DoubleValue venomCloudParticleHeight;
+        public final ForgeConfigSpec.DoubleValue venomCloudParticleSpeed;
+        public final ForgeConfigSpec.DoubleValue venomBlockedCloudOffset;
+        public final ForgeConfigSpec.DoubleValue secondPhaseHealthFraction;
+        public final ForgeConfigSpec.DoubleValue secondPhaseAttackMultiplier;
+        public final ForgeConfigSpec.DoubleValue secondPhaseSpeedMultiplier;
+        public final ForgeConfigSpec.IntValue stunImmunityRecoveryTicks;
+        public final ForgeConfigSpec.IntValue fireSnakeDurationTicks;
+        public final ForgeConfigSpec.IntValue firePointDurationTicks;
+        public final ForgeConfigSpec.DoubleValue firePointSpacing;
+        public final ForgeConfigSpec.DoubleValue fireDamageRadius;
+        public final ForgeConfigSpec.DoubleValue firePointVerticalRange;
+        public final ForgeConfigSpec.DoubleValue fireStartOrbitRadius;
+        public final ForgeConfigSpec.DoubleValue fireEndOrbitRadius;
+        public final ForgeConfigSpec.DoubleValue fireOrbitAngularSpeed;
+        public final ForgeConfigSpec.DoubleValue fireSnakeSpeedMultiplier;
+        public final ForgeConfigSpec.DoubleValue fireSnakeRedMultiplier;
+        public final ForgeConfigSpec.DoubleValue fireSnakeGreenMultiplier;
+        public final ForgeConfigSpec.DoubleValue fireSnakeBlueMultiplier;
+        public final ForgeConfigSpec.IntValue fireDamageIntervalTicks;
+        public final ForgeConfigSpec.DoubleValue fireDamageMultiplier;
+        public final ForgeConfigSpec.IntValue fireIgniteTicks;
+        public final ForgeConfigSpec.IntValue fireParticlesPerPoint;
+
+        private NagaConfig(ForgeConfigSpec.Builder builder) {
+            builder.comment("Naga combat takeover settings.").push("naga");
+            enabled = builder.comment("Enable the complete Naga combat takeover.")
+                    .define("enabled", true);
+            cruiseMinimumTicks = builder.comment("Minimum cruise duration between skills.")
+                    .defineInRange("cruise_minimum_ticks", 20, 1, 1200);
+            cruiseMaximumTicks = builder.comment("Maximum cruise duration between skills.")
+                    .defineInRange("cruise_maximum_ticks", 40, 1, 1200);
+            cruiseSpeed = builder.comment("Navigation speed during ordinary cruise.")
+                    .defineInRange("cruise_speed", 1.0, 0.0, 20.0);
+            shieldCooldownTicks = builder.comment("Shield cooldown after blocking pounce or tail sweep.")
+                    .defineInRange("shield_cooldown_ticks", 100, 0, 12000);
+            stunDurationTicks = builder.comment("Stun duration after a successful defensive reaction.")
+                    .defineInRange("stun_duration_ticks", 60, 1, 12000);
+            parryFeedbackTicks = builder.comment("Feedback duration returned to SenDimS.")
+                    .defineInRange("parry_feedback_ticks", 10, 1, 1200);
+            windupParticlesPerTick = builder.comment("Warning particles emitted per windup tick.")
+                    .defineInRange("windup_particles_per_tick", 4, 0, 128);
+
+            builder.comment("Pounce.").push("pounce");
+            pounceWindupTicks = builder.defineInRange("windup_ticks", 30, 1, 1200);
+            pounceFlightTicks = builder.defineInRange("flight_ticks", 20, 1, 1200);
+            pounceImpactRadius = builder.defineInRange("impact_radius", 4.0, 0.1, 64.0);
+            pounceVerticalRange = builder.comment("Vertical range of the pounce impact.")
+                    .defineInRange("vertical_range", 4.0, 0.0, 64.0);
+            pounceDamageMultiplier = builder.defineInRange("damage_multiplier", 1.5, 0.0, 100.0);
+            pounceHorizontalSpeed = builder.defineInRange("horizontal_speed", 1.2, 0.0, 20.0);
+            pounceVerticalSpeed = builder.defineInRange("vertical_speed", 0.55, 0.0, 20.0);
+            pounceCooldownTicks = builder.defineInRange("cooldown_ticks", 120, 1, 12000);
+            builder.pop();
+
+            builder.comment("Tail sweep.").push("tail_sweep");
+            tailWindupTicks = builder.defineInRange("windup_ticks", 20, 1, 1200);
+            tailDurationTicks = builder.comment("Visible sweep duration in ticks.")
+                    .defineInRange("duration_ticks", 8, 1, 1200);
+            tailRadius = builder.defineInRange("radius", 6.0, 0.1, 64.0);
+            tailVerticalRange = builder.comment("Vertical range of the tail sweep.")
+                    .defineInRange("vertical_range", 3.0, 0.0, 64.0);
+            tailHalfAngleDegrees = builder.defineInRange("half_angle_degrees", 90.0, 1.0, 180.0);
+            tailDamageMultiplier = builder.defineInRange("damage_multiplier", 1.5, 0.0, 100.0);
+            tailCooldownTicks = builder.defineInRange("cooldown_ticks", 100, 1, 12000);
+            builder.pop();
+
+            builder.comment("Body trail and combat poses.").push("body_control");
+            bodySegmentSpacing = builder.defineInRange("segment_spacing", 2.0, 0.1, 16.0);
+            bodyTrailSampleSpacing = builder.defineInRange("trail_sample_spacing", 0.25, 0.01, 4.0);
+            bodyTrailTeleportResetDistance = builder.defineInRange("teleport_reset_distance", 32.0, 1.0, 1024.0);
+            bodyTailCurveDegrees = builder.comment("Absolute body curve at either side of a tail sweep.")
+                    .defineInRange("tail_curve_degrees", 270.0, 180.0, 360.0);
+            bodyPoseBlendTicks = builder.comment("Ticks used to blend combat poses back into the head trail.")
+                    .defineInRange("pose_blend_ticks", 6, 0, 1200);
+            builder.pop();
+
+            builder.comment("Venom breath.").push("venom_breath");
+            venomWindupTicks = builder.defineInRange("windup_ticks", 30, 1, 1200);
+            venomLength = builder.defineInRange("length", 16.0, 0.1, 128.0);
+            venomWidth = builder.defineInRange("width", 4.0, 0.1, 64.0);
+            venomProjectileSpeed = builder.defineInRange("projectile_speed", 1.0, 0.05, 20.0);
+            venomProjectileRadius = builder.comment("Collision radius; 2.0 matches the default four-block corridor width.")
+                    .defineInRange("projectile_radius", 2.0, 0.1, 16.0);
+            venomInitialDamageMultiplier = builder.defineInRange("initial_damage_multiplier", 1.0, 0.0, 100.0);
+            venomCooldownTicks = builder.defineInRange("cooldown_ticks", 160, 1, 12000);
+            venomCloudDurationTicks = builder.defineInRange("cloud_duration_ticks", 140, 1, 12000);
+            venomCloudRadius = builder.defineInRange("cloud_radius", 3.0, 0.1, 64.0);
+            venomCloudVerticalRange = builder.comment("Vertical range of venom cloud damage.")
+                    .defineInRange("cloud_vertical_range", 3.0, 0.0, 64.0);
+            venomDamageIntervalTicks = builder.defineInRange("damage_interval_ticks", 20, 1, 1200);
+            venomDamageMultiplier = builder.defineInRange("damage_multiplier", 0.2, 0.0, 100.0);
+            venomPoisonDurationTicks = builder.defineInRange("poison_duration_ticks", 100, 1, 12000);
+            venomPoisonAmplifier = builder.comment("Zero-based effect amplifier; 1 is Poison II.")
+                    .defineInRange("poison_amplifier", 1, 0, 255);
+            venomBlockedCloudOffset = builder.comment(
+                            "Distance that a shield-blocked venom cloud is moved back along the incoming horizontal path.")
+                    .defineInRange("blocked_cloud_offset", 0.75, 0.0, 16.0);
+            builder.comment("Fluorescent venom colors, expressed as RGB channels from 0 to 255.")
+                    .push("particles");
+            venomPrimaryRed = builder.defineInRange("primary_red", 190, 0, 255);
+            venomPrimaryGreen = builder.defineInRange("primary_green", 255, 0, 255);
+            venomPrimaryBlue = builder.defineInRange("primary_blue", 35, 0, 255);
+            venomSecondaryRed = builder.defineInRange("secondary_red", 18, 0, 255);
+            venomSecondaryGreen = builder.defineInRange("secondary_green", 105, 0, 255);
+            venomSecondaryBlue = builder.defineInRange("secondary_blue", 18, 0, 255);
+            venomPrimaryParticleScale = builder.defineInRange("primary_scale", 1.4, 0.01, 16.0);
+            venomSecondaryParticleScale = builder.defineInRange("secondary_scale", 2.2, 0.01, 16.0);
+
+            builder.comment("Moving venom projectile particles.").push("projectile");
+            venomProjectileParticles = builder.comment("Bright color-transition core particles per tick.")
+                    .defineInRange("core_particles", 12, 0, 256);
+            venomProjectileMistParticles = builder.comment("Dark green outer dust particles per tick.")
+                    .defineInRange("mist_particles", 8, 0, 256);
+            venomProjectileSplashParticles = builder.comment("Slime splash particles per tick.")
+                    .defineInRange("splash_particles", 3, 0, 256);
+            venomProjectileGlowParticles = builder.comment("Fluorescent entity-effect particles per tick.")
+                    .defineInRange("glow_particles", 2, 0, 256);
+            venomProjectileCoreSpread = builder.defineInRange("core_spread", 0.2, 0.0, 16.0);
+            venomProjectileMistSpread = builder.defineInRange("mist_spread", 0.6, 0.0, 16.0);
+            venomProjectileParticleSpeed = builder.defineInRange("particle_speed", 0.025, 0.0, 4.0);
+            builder.pop();
+
+            builder.comment("Low venom cloud particles.").push("cloud");
+            venomCloudParticles = builder.comment("Bright color-transition core particles per tick.")
+                    .defineInRange("core_particles", 8, 0, 256);
+            venomCloudMistParticles = builder.comment("Dark green outer dust particles per tick.")
+                    .defineInRange("mist_particles", 12, 0, 256);
+            venomCloudBubbleParticles = builder.comment("Bubble pop particles per tick.")
+                    .defineInRange("bubble_particles", 3, 0, 256);
+            venomCloudSplashParticles = builder.comment("Slime splash particles per tick.")
+                    .defineInRange("splash_particles", 3, 0, 256);
+            venomCloudGlowParticles = builder.comment("Fluorescent entity-effect particles per tick.")
+                    .defineInRange("glow_particles", 4, 0, 256);
+            venomCloudCoreSpread = builder.defineInRange("core_spread", 1.2, 0.0, 32.0);
+            venomCloudMistSpread = builder.defineInRange("mist_spread", 2.2, 0.0, 32.0);
+            venomCloudParticleHeight = builder.comment("Height above the cloud center used for all cloud particles.")
+                    .defineInRange("particle_height", 0.15, -4.0, 8.0);
+            venomCloudParticleSpeed = builder.defineInRange("particle_speed", 0.015, 0.0, 4.0);
+            builder.pop();
+            builder.pop();
+            builder.pop();
+
+            builder.comment("Second phase and fire snake.").push("second_phase");
+            secondPhaseHealthFraction = builder.comment("Phase two starts strictly below this health fraction.")
+                    .defineInRange("health_fraction", 0.5, 0.0, 1.0);
+            secondPhaseAttackMultiplier = builder.defineInRange("attack_multiplier", 1.2, 0.0, 20.0);
+            secondPhaseSpeedMultiplier = builder.defineInRange("speed_multiplier", 1.2, 0.0, 20.0);
+            stunImmunityRecoveryTicks = builder.defineInRange("stun_immunity_recovery_ticks", 300, 1, 12000);
+            fireSnakeDurationTicks = builder.defineInRange("fire_snake_duration_ticks", 300, 1, 12000);
+            firePointDurationTicks = builder.defineInRange("fire_point_duration_ticks", 300, 1, 12000);
+            firePointSpacing = builder.defineInRange("fire_point_spacing", 1.5, 0.1, 32.0);
+            fireDamageRadius = builder.defineInRange("fire_damage_radius", 1.5, 0.1, 32.0);
+            firePointVerticalRange = builder.comment("Vertical range of fire point damage.")
+                    .defineInRange("fire_vertical_range", 3.0, 0.0, 64.0);
+            fireStartOrbitRadius = builder.defineInRange("fire_start_orbit_radius", 12.0, 0.1, 128.0);
+            fireEndOrbitRadius = builder.defineInRange("fire_end_orbit_radius", 4.0, 0.1, 128.0);
+            fireOrbitAngularSpeed = builder.comment("Orbit angle advanced each tick, in radians.")
+                    .defineInRange("fire_orbit_angular_speed", 0.08, 0.001, 3.141592653589793);
+            fireSnakeSpeedMultiplier = builder.defineInRange("fire_snake_speed_multiplier", 1.2, 0.0, 20.0);
+            fireSnakeRedMultiplier = builder.comment("Red model-color multiplier while the fire snake is active.")
+                    .defineInRange("fire_snake_red_multiplier", 1.0, 0.0, 4.0);
+            fireSnakeGreenMultiplier = builder.comment("Green model-color multiplier while the fire snake is active.")
+                    .defineInRange("fire_snake_green_multiplier", 0.25, 0.0, 4.0);
+            fireSnakeBlueMultiplier = builder.comment("Blue model-color multiplier while the fire snake is active.")
+                    .defineInRange("fire_snake_blue_multiplier", 0.2, 0.0, 4.0);
+            fireDamageIntervalTicks = builder.defineInRange("fire_damage_interval_ticks", 20, 1, 1200);
+            fireDamageMultiplier = builder.defineInRange("fire_damage_multiplier", 0.5, 0.0, 100.0);
+            fireIgniteTicks = builder.defineInRange("fire_ignite_ticks", 100, 0, 12000);
+            fireParticlesPerPoint = builder.defineInRange("fire_particles_per_point", 3, 0, 128);
+            builder.pop();
             builder.pop();
         }
     }

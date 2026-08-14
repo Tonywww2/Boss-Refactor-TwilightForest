@@ -129,7 +129,9 @@ public final class TwilightForestSenDimsCompat implements TwilightBossParryBridg
         }
         event.setDecision(LeaderParryDecision.PARRY);
         event.setParriedTicks(feedbackTicks);
-        event.setStunTicks(feedbackTicks);
+        event.setStunTicks(access.bossRefactorTF$suppressesExternalParryStun()
+            ? 0
+            : feedbackTicks);
     }
 
     @SubscribeEvent

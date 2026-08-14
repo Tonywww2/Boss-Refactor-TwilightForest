@@ -29,6 +29,29 @@ Alpha Yeti timings, ranges, knockback, falling-ice density, and the random
 15-35 tick post-skill cruise are configured under `alpha_yeti` in
 `config/bossrefactortf-common.toml`.
 
+The Naga cycles between a pounce that follows an undefended impact with a tail
+sweep, standalone tail sweeps, and a moving venom projectile that leaves a
+seven-second poison cloud. A shield fully absorbs the initial venom hit and
+applies its cooldown, but the cloud lands 0.75 blocks outside the shield along
+the incoming path; SlashBlade parries still cancel the projectile without a
+cloud. Below half health, phase two multiplies attack damage and movement speed
+by 1.2, creates a fire snake with a virtual flame trail and a pronounced red
+tint across the Naga and all of its segments, and grants one stun immunity that
+recovers every 15 seconds. All values are configured under `naga` in
+`config/bossrefactortf-common.toml`.
+
+The Lich is rebuilt as a two-phase fight. Its first phase retains the original
+ranged attacks and initial shield but no longer creates the original automatic
+shadow clones. Breaking the last initial shield starts phase two and grants five
+new shield layers, each preventing 10% incoming damage. Phase-two melee attacks
+add 20% attack damage as magic damage. The Lich can consume one shield layer to
+empower a telegraphed rectangular shield bash from 150% to 225% attack damage.
+Shield blocks and SlashBlade parries prevent that damage but not its knockback,
+and leave the Lich stunned for 40 ticks. Phase two can also summon one invulnerable
+ranged clone; after 15 seconds it performs one shield bash and disappears. Lich
+timings, ranges, multipliers, knockback, shields, and clone lifetime are configured
+under `lich` in `config/bossrefactortf-common.toml`.
+
 The Ur-Ghast fight alternates between 20-second patrol and offensive modes from
 the start. The first time health falls below 50%, it immediately resets to
 offensive mode and starts an Arsenic-Lead Mist. Offensive mode keeps the boss
@@ -60,14 +83,16 @@ Focused dependency-free combat checks:
 .\gradlew.bat knightPhantomCombatSelfTest --console=plain
 .\gradlew.bat alphaYetiCombatSelfTest --console=plain
 .\gradlew.bat urGhastCombatSelfTest --console=plain
+.\gradlew.bat nagaCombatSelfTest --console=plain
+.\gradlew.bat lichCombatSelfTest --console=plain
 ```
 
-The local SenDimS JAR is available to compile the optional compatibility layer.
-SenDimS 1.0.19 does not declare all of its hard runtime dependencies in
-`mods.toml`; a real integration run must therefore use the complete SenDimS
-development/modpack environment rather than this JAR alone. The explicit
-property adds the local JAR and SlashBlade Resharped, but additional SenDimS
-runtime dependencies still have to be supplied by that environment:
+The local SenDimS JAR is available to compile the optional compatibility layer,
+but it does not by itself provide a complete runtime environment. A real
+integration run must therefore use the complete SenDimS development/modpack
+environment. The explicit property adds the local JAR and SlashBlade Resharped,
+but additional SenDimS runtime dependencies still have to be supplied by that
+environment:
 
 ```powershell
 .\gradlew.bat runClient -PenableSenDimsRuntime --console=plain
@@ -89,11 +114,12 @@ mod is installed.
    not already managed by SenDimS.
 6. Open and close parry windows through the integration bridge.
 
-SenDimS 1.0.19 already has compatibility for Naga, Minoshroom, Knight Phantom,
-and Alpha Yeti. This mod deliberately registers Knight Phantom and Alpha Yeti as
-external Leaders after a boss-specific compatibility review, so SenDimS owns
-their parry state and five-times parried damage while this mod owns their combat
-state machines. Because SenDimS does not initialize health for external Leaders,
-this mod applies the same `MULTIPLY_TOTAL +5.0` modifier, producing six-times
-maximum health. Never write SenDimS internal NBT directly; use `LeaderApi` and
-its public events through `compat/sendims`.
+SenDimS 1.0.21 has removed its built-in Naga control, and the target integration
+also removes its built-in Lich control. This mod deliberately registers Naga,
+Lich, Knight Phantom, and Alpha Yeti as external Leaders after a
+boss-specific compatibility review, so SenDimS owns their parry state and
+five-times parried damage while this mod owns their combat state machines.
+Because SenDimS does not initialize health for external Leaders, this mod
+applies the same `MULTIPLY_TOTAL +5.0` modifier, producing six-times maximum
+health. Never write SenDimS internal NBT directly; use `LeaderApi` and its
+public events through `compat/sendims`.

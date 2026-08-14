@@ -10,6 +10,10 @@ public interface TwilightBossParryAccess {
 
     int bossRefactorTF$getParryFeedbackTicks();
 
+    default boolean bossRefactorTF$suppressesExternalParryStun() {
+        return false;
+    }
+
     int bossRefactorTF$acceptParry(
             @Nullable LivingEntity actor, ResourceLocation sourceId);
 }

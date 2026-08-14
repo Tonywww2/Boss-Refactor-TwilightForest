@@ -1,4 +1,5 @@
 {
 	"label.bossrefactortf.alpha_yeti.fatigue": "Fatigue %s/%s",
-	"label.bossrefactortf.alpha_yeti.imbalance": "Imbalance %s/%s"
+	"label.bossrefactortf.alpha_yeti.imbalance": "Imbalance %s/%s",
+	"label.bossrefactortf.naga.stun_immunity": "Stun Ward"
 }

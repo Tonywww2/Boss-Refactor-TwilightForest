@@ -9,10 +9,16 @@
     "boss.CarminiteGhastguardTrapMixin",
     "boss.FallingIceMixin",
     "boss.GhastTrapBlockEntityMixin",
+    "boss.HydraHeadContainerMixin",
+    "boss.HydraMixin",
     "boss.KnightPhantomMixin",
     "boss.KnightPhantomNearestTargetGoalMixin",
     "boss.KnightPhantomTargetGoalMixin",
     "boss.LargeFireballTelegraphMixin",
+    "boss.LichMixin",
+    "boss.LichPhaseGoalMixin",
+    "boss.LichShadowsGoalMixin",
+    "boss.NagaMixin",
     "boss.NoClipMoveControlMixin",
     "boss.PhantomAttackGoalsMixin",
     "boss.PhantomThrowWeaponGoalAccessMixin",
@@ -21,7 +27,11 @@
     "boss.UrGhastMixin"
   ],
   "client": [
-    "client.LargeFireballRendererMixin"
+    "client.HydraHeadModelMixin",
+    "client.LargeFireballRendererMixin",
+    "client.NagaFireSnakeRendererMixin",
+    "client.NagaSegmentFireSnakeRendererMixin",
+    "client.NewHydraHeadModelMixin"
   ],
   "injectors": {
     "defaultRequire": 1
