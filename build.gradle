@@ -200,6 +200,67 @@ tasks.register('alphaYetiCombatSelfTest', JavaExec) {
     mainClass = 'com.tonywww.bossrefactortf.boss.alphayeti.AlphaYetiCombatRulesSelfTest'
 }
 
+tasks.register('minoshroomCombatSelfTest', JavaExec) {
+    group = 'verification'
+    description = 'Runs dependency-free Minoshroom combat-rule checks.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.tonywww.bossrefactortf.boss.minoshroom.MinoshroomCombatRulesSelfTest'
+}
+
+tasks.register('snowQueenCombatSelfTest', JavaExec) {
+    group = 'verification'
+    description = 'Runs dependency-free Snow Queen combat-rule checks.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.tonywww.bossrefactortf.boss.snowqueen.SnowQueenCombatRulesSelfTest'
+}
+
+    tasks.register('verifyMinoshroomCombatContract') {
+        group = 'verification'
+        description = 'Ensures Minoshroom stomp damage bypasses shields through data.'
+        def combatFile = file(
+            'src/main/java/com/tonywww/bossrefactortf/boss/minoshroom/MinoshroomCombat.java')
+        def damageTypesFile = file(
+            'src/main/java/com/tonywww/bossrefactortf/boss/minoshroom/MinoshroomDamageTypes.java')
+            def combatRulesFile = file(
+                'src/main/java/com/tonywww/bossrefactortf/boss/minoshroom/MinoshroomCombatRules.java')
+        def stompDamageTypeFile = file(
+            'src/main/resources/data/bossrefactortf/damage_type/minoshroom_stomp.json')
+        def bypassesShieldFile = file(
+            'src/main/resources/data/minecraft/tags/damage_type/bypasses_shield.json')
+            inputs.files(combatFile, damageTypesFile, combatRulesFile,
+                stompDamageTypeFile, bypassesShieldFile)
+        doLast {
+        if (!combatFile.getText('UTF-8').contains(
+            'MinoshroomDamageTypes.stomp(minoshroom)')) {
+            throw new GradleException(
+                'Minoshroom stomp must use the dedicated damage source')
+        }
+        if (!damageTypesFile.getText('UTF-8').contains(
+            'MinoshroomCombatRules.stompDamageTypePath()')
+            || !combatRulesFile.getText('UTF-8').contains(
+                'STOMP_DAMAGE_TYPE_PATH = "minoshroom_stomp"')) {
+            throw new GradleException(
+                'Minoshroom stomp must declare its damage type key')
+        }
+        def damageType = new groovy.json.JsonSlurper().parse(stompDamageTypeFile)
+        if (damageType.message_id != 'mob') {
+            throw new GradleException(
+                'Minoshroom stomp damage type must remain an entity attack')
+        }
+        def bypassesShield = new groovy.json.JsonSlurper().parse(bypassesShieldFile)
+        if (!bypassesShield.values.contains('bossrefactortf:minoshroom_stomp')) {
+            throw new GradleException(
+                'Minoshroom stomp must be tagged to bypass shields')
+        }
+        }
+    }
+
+    tasks.named('minoshroomCombatSelfTest').configure {
+        dependsOn tasks.named('verifyMinoshroomCombatContract')
+    }
+
 tasks.register('twilightBossSenDimsSelfTest', JavaExec) {
     group = 'verification'
     description = 'Runs dependency-free SenDimS boss-trait checks.'
@@ -239,13 +300,20 @@ tasks.register('verifyOptionalSenDimsIsolation') {
         include '**/*.java'
         exclude '**/compat/sendims/**'
     }
-    inputs.files(coreSources)
+    def leaderPolicyFile = file(
+            'src/main/java/com/tonywww/bossrefactortf/boss/TwilightBossLeaderProfilePolicy.java')
+    inputs.files(coreSources, leaderPolicyFile)
     doLast {
         def leaks = coreSources.files.findAll {
             it.getText('UTF-8').contains('com.tonywww.slashblade_sendims')
         }
         if (!leaks.isEmpty()) {
             throw new GradleException("SenDimS API leaked into core classes: ${leaks}")
+        }
+        if (!leaderPolicyFile.getText('UTF-8').contains(
+                'MANAGED_OR_EXTERNAL')) {
+            throw new GradleException(
+                    'The Minoshroom migration policy must remain core-owned')
         }
     }
 }
@@ -283,6 +351,14 @@ tasks.register('verifyMixinRefmapContract') {
         'src/main/java/com/tonywww/bossrefactortf/mixin/boss/PhantomThrowWeaponGoalAccessMixin.java')
     def alphaYetiMixinFile = file(
         'src/main/java/com/tonywww/bossrefactortf/mixin/boss/AlphaYetiMixin.java')
+    def minoshroomMixinFile = file(
+        'src/main/java/com/tonywww/bossrefactortf/mixin/boss/MinoshroomMixin.java')
+    def snowQueenMixinFile = file(
+        'src/main/java/com/tonywww/bossrefactortf/mixin/boss/SnowQueenMixin.java')
+    def stableIceCoreMixinFile = file(
+        'src/main/java/com/tonywww/bossrefactortf/mixin/boss/StableIceCoreMixin.java')
+    def unstableIceCoreMixinFile = file(
+        'src/main/java/com/tonywww/bossrefactortf/mixin/boss/UnstableIceCoreMixin.java')
     def lichMixinFile = file(
         'src/main/java/com/tonywww/bossrefactortf/mixin/boss/LichMixin.java')
     def lichPhaseGoalMixinFile = file(
@@ -319,7 +395,8 @@ tasks.register('verifyMixinRefmapContract') {
         'src/main/java/com/tonywww/bossrefactortf/mixin/boss/GhastTrapBlockEntityMixin.java')
     inputs.files(mixinConfigFile, generatedRefmapFile,
         attackGoalsMixinFile, formationGoalMixinFile,
-        throwWeaponInvokerMixinFile, alphaYetiMixinFile,
+        throwWeaponInvokerMixinFile, alphaYetiMixinFile, minoshroomMixinFile,
+        snowQueenMixinFile, stableIceCoreMixinFile, unstableIceCoreMixinFile,
         lichMixinFile, lichPhaseGoalMixinFile, lichShadowsGoalMixinFile,
         nagaMixinFile, hydraMixinFile, hydraHeadContainerMixinFile,
         fallingIceMixinFile, urGhastMixinFile,
@@ -355,6 +432,15 @@ tasks.register('verifyMixinRefmapContract') {
                         'm_7392_(Lnet/minecraft/world/entity/Entity;FF' +
                         'Lcom/mojang/blaze3d/vertex/PoseStack;' +
                         'Lnet/minecraft/client/renderer/MultiBufferSource;I)V')
+                ],
+                'com/tonywww/bossrefactortf/mixin/client/NagaFireSnakeRendererMixin': [
+                    ('render(Lnet/minecraft/world/entity/LivingEntity;FF' +
+                        'Lcom/mojang/blaze3d/vertex/PoseStack;' +
+                        'Lnet/minecraft/client/renderer/MultiBufferSource;I)V'):
+                        ('Lnet/minecraft/client/renderer/entity/LivingEntityRenderer;' +
+                        'm_7392_(Lnet/minecraft/world/entity/LivingEntity;FF' +
+                        'Lcom/mojang/blaze3d/vertex/PoseStack;' +
+                        'Lnet/minecraft/client/renderer/MultiBufferSource;I)V')
                 ]
         ]
         def mismatches = []
@@ -387,6 +473,42 @@ tasks.register('verifyMixinRefmapContract') {
                         'method = {"aiStep", "m_8107_"}',
                         'method = {"addAdditionalSaveData", "m_7380_"}',
                         'method = {"readAdditionalSaveData", "m_7378_"}'
+                    ],
+                (minoshroomMixinFile):
+                    [
+                        'method = {"registerGoals", "m_8099_"}',
+                        'method = {"defineSynchedData", "m_8097_"}',
+                        'method = {"tick", "m_8119_"}',
+                        'method = {"addAdditionalSaveData", "m_7380_"}',
+                        'method = {"readAdditionalSaveData", "m_7378_"}'
+                    ],
+                (snowQueenMixinFile):
+                    [
+                        'method = {"registerGoals", "m_8099_"}',
+                        'method = {"defineSynchedData", "m_8097_"}',
+                        'method = {"aiStep", "m_8107_"}',
+                        'method = {"tick", "m_8119_"}',
+                        'method = {"customServerAiStep", "m_8024_"}',
+                        'method = {"addAdditionalSaveData", "m_7380_"}',
+                        'method = {"readAdditionalSaveData", "m_7378_"}'
+                    ],
+                (stableIceCoreMixinFile):
+                    [
+                        'protected void defineSynchedData()',
+                        'public void aiStep()',
+                        'public void addAdditionalSaveData(CompoundTag tag)',
+                        'public void readAdditionalSaveData(CompoundTag tag)'
+                    ],
+                (unstableIceCoreMixinFile):
+                    [
+                        'protected void defineSynchedData()',
+                        'public void aiStep()',
+                        'public void addAdditionalSaveData(CompoundTag tag)',
+                        'public void readAdditionalSaveData(CompoundTag tag)',
+                        'method = {"tickDeath", "m_6153_"}',
+                        '@ModifyConstant(',
+                        '@Redirect(',
+                        'target = "Ltwilightforest/entity/monster/UnstableIceCore;transformBlocks()V"'
                     ],
                 (lichMixinFile):
                     [
@@ -502,6 +624,10 @@ tasks.register('verifyMixinRefmapContract') {
                     'The custom state machine must register the vanilla skill invoker Mixin')
         }
         for (String mixinName : ['boss.AlphaYetiMixin',
+                 'boss.MinoshroomMixin',
+                 'boss.SnowQueenMixin',
+                 'boss.StableIceCoreMixin',
+                 'boss.UnstableIceCoreMixin',
                  'boss.LichMixin',
                  'boss.LichPhaseGoalMixin',
                  'boss.LichShadowsGoalMixin',
@@ -527,6 +653,19 @@ tasks.register('verifyMixinRefmapContract') {
             if (!mixinConfig.client.contains(mixinName)) {
                 throw new GradleException(
                     "The client renderer Mixin must register ${mixinName}")
+            }
+        }
+        def sharedEntityTint = nagaFireSnakeRendererMixinFile.getText('UTF-8')
+        for (String contract : [
+                'entity instanceof Minoshroom minoshroom',
+                '&& BossRefactorTwilightForestConfig.MINOSHROOM.enabled.get()',
+                '&& access.bossRefactorTF$isSecondPhase()',
+                'config.secondPhaseRedTint.get().floatValue()',
+                'config.secondPhaseGreenTint.get().floatValue()',
+                'config.secondPhaseBlueTint.get().floatValue()']) {
+            if (!sharedEntityTint.contains(contract)) {
+                throw new GradleException(
+                        "The shared entity renderer tint is missing: ${contract}")
             }
         }
         def throwWeaponInvoker = throwWeaponInvokerMixinFile.getText('UTF-8')
@@ -555,10 +694,15 @@ tasks.register('verifySenDimsSkeletonContracts') {
             'src/main/java/com/tonywww/bossrefactortf/boss/TwilightBossSenDimsEvents.java')
     def rulesFile = file(
             'src/main/java/com/tonywww/bossrefactortf/boss/TwilightBossSenDimsRules.java')
+    def leaderProfileFile = file(
+            'src/main/java/com/tonywww/bossrefactortf/boss/TwilightBossLeaderProfile.java')
+    def leaderPolicyFile = file(
+            'src/main/java/com/tonywww/bossrefactortf/boss/TwilightBossLeaderProfilePolicy.java')
         def providerFile = file(
             'src/main/java/com/tonywww/bossrefactortf/compat/sendims/client/ExternalLeaderIndicatorProvider.java')
         inputs.files(modFile, integrationFile, compatFile, bootstrapFile,
-            traitsFile, rulesFile, providerFile)
+            traitsFile, rulesFile, leaderProfileFile, leaderPolicyFile,
+            providerFile)
     doLast {
         def mod = modFile.getText('UTF-8')
         def integration = integrationFile.getText('UTF-8')
@@ -566,6 +710,8 @@ tasks.register('verifySenDimsSkeletonContracts') {
         def bootstrap = bootstrapFile.getText('UTF-8')
         def traits = traitsFile.getText('UTF-8')
         def rules = rulesFile.getText('UTF-8')
+        def leaderProfile = leaderProfileFile.getText('UTF-8')
+        def leaderPolicy = leaderPolicyFile.getText('UTF-8')
         def provider = providerFile.getText('UTF-8')
         def required = [
                 'TwilightBossParryIntegration.install(compat)',
@@ -576,7 +722,9 @@ tasks.register('verifySenDimsSkeletonContracts') {
                 'LeaderApi.isParried(boss)',
             'LeaderApi.registerLeader(',
             'boss, LeaderProfile.EXTERNAL',
-            'snapshot.profile() == LeaderProfile.EXTERNAL',
+                'LeaderApi.getSnapshot(boss)',
+                'case MANAGED -> TwilightBossLeaderProfile.MANAGED;',
+                'case EXTERNAL -> TwilightBossLeaderProfile.EXTERNAL;',
             'return ensureActive(boss) && LeaderApi.isParryable(boss);',
             'return ensureActive(boss) && LeaderApi.isParried(boss);',
             'return ensureActive(boss) && LeaderApi.openParryWindow(boss);',
@@ -592,7 +740,8 @@ tasks.register('verifySenDimsSkeletonContracts') {
             'OptionalDouble.of(1.0)'
         ]
         def combined = (compat + '\n' + provider + '\n' + traits + '\n'
-            + rules + '\n' + bootstrap + '\n' + integration)
+            + rules + '\n' + bootstrap + '\n' + integration + '\n'
+            + leaderProfile + '\n' + leaderPolicy)
         def missing = required.findAll { !combined.contains(it) }
         if (!missing.isEmpty()) {
             throw new GradleException("SenDimS skeleton contracts are missing: ${missing}")
@@ -619,9 +768,20 @@ tasks.register('verifySenDimsSkeletonContracts') {
             throw new GradleException(
                     'Refactored parry bosses must be registered as EXTERNAL Leaders')
         }
+            if (!mod.contains('TFEntities.MINOSHROOM.get()')
+                || !mod.contains('declareManagedOrExternalLeaderType(')
+                || !integration.contains('MANAGED_OR_EXTERNAL_LEADERS')
+                || !leaderPolicy.contains('MANAGED_OR_EXTERNAL')) {
+                throw new GradleException(
+                    'Minoshroom must retain a managed-or-external migration policy')
+            }
         def requiredTraits = [
             'bridge.ensureActive(boss)',
-            'bridge.usesExternalProfile(boss)',
+                'bridge.leaderProfile(boss)',
+                'TwilightBossLeaderProfilePolicy.MANAGED_OR_EXTERNAL',
+                'profile == TwilightBossLeaderProfile.EXTERNAL',
+                'removeProjectExternalHealthScale(boss)',
+                'serverLevel.getServer().execute(() -> {',
             'AttributeModifier.Operation.MULTIPLY_TOTAL',
             'MAXIMUM_HEALTH_MULTIPLIER = 6.0',
             'MAXIMUM_HEALTH_MODIFIER_AMOUNT =',
@@ -639,6 +799,10 @@ tasks.register('verifySenDimsSkeletonContracts') {
         }
         if (!integration.contains('new LinkedHashSet<>()')) {
             throw new GradleException('External Leader type registration must remain deduplicated')
+        }
+        if (compat.contains('migrationExternalTypes')) {
+            throw new GradleException(
+                'Managed-or-external types must not be claimed before legacy SenDimS registration')
         }
     }
 }
@@ -677,6 +841,8 @@ tasks.named('check').configure {
     dependsOn tasks.named('telegraphSelfTest')
     dependsOn tasks.named('knightPhantomCombatSelfTest')
     dependsOn tasks.named('alphaYetiCombatSelfTest')
+    dependsOn tasks.named('minoshroomCombatSelfTest')
+    dependsOn tasks.named('snowQueenCombatSelfTest')
     dependsOn tasks.named('nagaCombatSelfTest')
     dependsOn tasks.named('lichCombatSelfTest')
     dependsOn tasks.named('hydraCombatSelfTest')

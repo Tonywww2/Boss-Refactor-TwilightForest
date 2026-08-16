@@ -20,6 +20,21 @@ public final class TwilightBossSenDimsRulesSelfTest {
         checkClose(TwilightBossSenDimsRules.healthAfterScaleRemoval(
                         300.0F, 600.0F, 100.0F),
                 50.0, "removing SenDimS must preserve the health fraction");
+        check(TwilightBossLeaderProfilePolicy.EXTERNAL_ONLY.accepts(
+                        TwilightBossLeaderProfile.EXTERNAL),
+                "strict boss policies must accept the External profile");
+        check(!TwilightBossLeaderProfilePolicy.EXTERNAL_ONLY.accepts(
+                        TwilightBossLeaderProfile.MANAGED),
+                "strict boss policies must reject the Managed profile");
+        check(TwilightBossLeaderProfilePolicy.MANAGED_OR_EXTERNAL.accepts(
+                        TwilightBossLeaderProfile.MANAGED),
+                "the Minoshroom migration policy must accept Managed");
+        check(TwilightBossLeaderProfilePolicy.MANAGED_OR_EXTERNAL.accepts(
+                        TwilightBossLeaderProfile.EXTERNAL),
+                "the Minoshroom migration policy must accept External");
+        check(!TwilightBossLeaderProfilePolicy.MANAGED_OR_EXTERNAL.accepts(
+                        TwilightBossLeaderProfile.NONE),
+                "the migration policy must still require Leader activation");
     }
 
     private static void checkClose(double actual, double expected, String message) {

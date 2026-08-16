@@ -27,8 +27,8 @@ public final class TwilightBossParryIntegration {
         }
 
         @Override
-        public boolean usesExternalProfile(LivingEntity boss) {
-            return false;
+        public TwilightBossLeaderProfile leaderProfile(LivingEntity boss) {
+            return TwilightBossLeaderProfile.NONE;
         }
 
         @Override
@@ -54,6 +54,8 @@ public final class TwilightBossParryIntegration {
 
     private static final Set<EntityType<? extends LivingEntity>> EXTERNAL_LEADERS =
             new LinkedHashSet<>();
+        private static final Set<EntityType<? extends LivingEntity>>
+            MANAGED_OR_EXTERNAL_LEADERS = new LinkedHashSet<>();
     private static TwilightBossParryBridge bridge = NOOP;
 
     private TwilightBossParryIntegration() {
@@ -67,14 +69,46 @@ public final class TwilightBossParryIntegration {
         return Collections.unmodifiableSet(EXTERNAL_LEADERS);
     }
 
+    public static Set<EntityType<? extends LivingEntity>>
+            managedOrExternalLeaderTypes() {
+        return Collections.unmodifiableSet(MANAGED_OR_EXTERNAL_LEADERS);
+    }
+
+        public static TwilightBossLeaderProfilePolicy leaderProfilePolicy(
+            EntityType<?> entityType) {
+        return MANAGED_OR_EXTERNAL_LEADERS.contains(entityType)
+                ? TwilightBossLeaderProfilePolicy.MANAGED_OR_EXTERNAL
+                : TwilightBossLeaderProfilePolicy.EXTERNAL_ONLY;
+    }
+
     public static boolean declareExternalLeaderType(
             EntityType<? extends LivingEntity> entityType) {
         EntityType<? extends LivingEntity> checked =
                 Objects.requireNonNull(entityType, "entityType");
+        if (MANAGED_OR_EXTERNAL_LEADERS.contains(checked)) {
+            throw new IllegalStateException(
+                    "Leader type already uses the managed-or-external policy: "
+                            + EntityType.getKey(checked));
+        }
         if (!EXTERNAL_LEADERS.add(checked)) {
             return false;
         }
         return !bridge.isAvailable() || bridge.registerLeaderType(checked);
+    }
+
+    public static boolean declareManagedOrExternalLeaderType(
+            EntityType<? extends LivingEntity> entityType) {
+        EntityType<? extends LivingEntity> checked =
+                Objects.requireNonNull(entityType, "entityType");
+        if (EXTERNAL_LEADERS.contains(checked)) {
+            throw new IllegalStateException(
+                    "Leader type already requires the External profile: "
+                            + EntityType.getKey(checked));
+        }
+        if (!MANAGED_OR_EXTERNAL_LEADERS.add(checked)) {
+            return false;
+        }
+        return true;
     }
 
     public static void install(TwilightBossParryBridge newBridge) {

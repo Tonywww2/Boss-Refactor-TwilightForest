@@ -7,20 +7,24 @@ public final class BossRefactorTwilightForestConfig {
     public static final AttackTelegraphConfig ATTACK_TELEGRAPH;
         public static final KnightPhantomConfig KNIGHT_PHANTOM;
         public static final AlphaYetiConfig ALPHA_YETI;
+                public static final MinoshroomConfig MINOSHROOM;
         public static final UrGhastConfig UR_GHAST;
                 public static final NagaConfig NAGA;
                 public static final LichConfig LICH;
         public static final HydraConfig HYDRA;
+        public static final SnowQueenConfig SNOW_QUEEN;
 
     static {
         ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
         ATTACK_TELEGRAPH = new AttackTelegraphConfig(builder);
         KNIGHT_PHANTOM = new KnightPhantomConfig(builder);
         ALPHA_YETI = new AlphaYetiConfig(builder);
+        MINOSHROOM = new MinoshroomConfig(builder);
         UR_GHAST = new UrGhastConfig(builder);
         NAGA = new NagaConfig(builder);
                 LICH = new LichConfig(builder);
         HYDRA = new HydraConfig(builder);
+        SNOW_QUEEN = new SnowQueenConfig(builder);
         COMMON_SPEC = builder.build();
     }
 
@@ -69,6 +73,151 @@ public final class BossRefactorTwilightForestConfig {
                     .defineInRange("curve_segments", 48, 8, 256);
             heightOffset = builder.comment("Vertical telegraph offset.")
                     .defineInRange("height_offset", 0.08, -4.0, 4.0);
+            builder.pop();
+        }
+    }
+
+    public static final class MinoshroomConfig {
+        public final ForgeConfigSpec.BooleanValue enabled;
+        public final ForgeConfigSpec.IntValue blockDestructionIntervalTicks;
+        public final ForgeConfigSpec.DoubleValue blockDestructionHorizontalRange;
+        public final ForgeConfigSpec.DoubleValue blockDestructionVerticalRange;
+        public final ForgeConfigSpec.DoubleValue rangedDamageReductionRadius;
+        public final ForgeConfigSpec.DoubleValue rangedDamageReduction;
+        public final ForgeConfigSpec.IntValue cruiseMinimumTicks;
+        public final ForgeConfigSpec.IntValue cruiseMaximumTicks;
+        public final ForgeConfigSpec.DoubleValue cruiseNavigationSpeed;
+        public final ForgeConfigSpec.IntValue sweepInitialWindupTicks;
+        public final ForgeConfigSpec.DoubleValue sweepDashMaximumDistance;
+        public final ForgeConfigSpec.IntValue sweepDashDurationTicks;
+        public final ForgeConfigSpec.DoubleValue sweepDashNavigationSpeed;
+        public final ForgeConfigSpec.DoubleValue sweepDashHitboxInflation;
+        public final ForgeConfigSpec.DoubleValue sweepDashDamageMultiplier;
+        public final ForgeConfigSpec.IntValue sweepStrikeWindupTicks;
+        public final ForgeConfigSpec.DoubleValue sweepStrikeRadius;
+        public final ForgeConfigSpec.DoubleValue sweepStrikeArcDegrees;
+        public final ForgeConfigSpec.DoubleValue sweepStrikeDamageMultiplier;
+        public final ForgeConfigSpec.IntValue sweepParryStunTicks;
+        public final ForgeConfigSpec.DoubleValue sweepRepeatProbability;
+        public final ForgeConfigSpec.IntValue sweepMaximumRepeats;
+        public final ForgeConfigSpec.IntValue secondPhaseMinimumSweepRounds;
+        public final ForgeConfigSpec.IntValue stompWindupTicks;
+        public final ForgeConfigSpec.DoubleValue stompRadius;
+        public final ForgeConfigSpec.DoubleValue stompDamageMultiplier;
+        public final ForgeConfigSpec.DoubleValue stompHorizontalKnockback;
+        public final ForgeConfigSpec.DoubleValue stompMinimumVerticalVelocity;
+        public final ForgeConfigSpec.IntValue secondPhaseStompCount;
+        public final ForgeConfigSpec.IntValue secondPhaseStompIntervalTicks;
+        public final ForgeConfigSpec.DoubleValue secondPhaseHealthFraction;
+        public final ForgeConfigSpec.DoubleValue secondPhaseWindupMultiplier;
+        public final ForgeConfigSpec.DoubleValue secondPhaseDamageMultiplier;
+        public final ForgeConfigSpec.DoubleValue secondPhaseSpeedMultiplier;
+                public final ForgeConfigSpec.DoubleValue secondPhaseRedTint;
+                public final ForgeConfigSpec.DoubleValue secondPhaseGreenTint;
+                public final ForgeConfigSpec.DoubleValue secondPhaseBlueTint;
+
+        private MinoshroomConfig(ForgeConfigSpec.Builder builder) {
+            builder.comment("Minoshroom combat takeover settings.")
+                    .push("minoshroom");
+            enabled = builder.comment("Enable the complete Minoshroom combat takeover.")
+                    .define("enabled", true);
+
+            builder.comment("Base traits.").push("base_traits");
+            blockDestructionIntervalTicks = builder.comment(
+                            "Ticks between close-range block destruction scans.")
+                    .defineInRange("block_destruction_interval_ticks", 5, 1, 1200);
+            blockDestructionHorizontalRange = builder.comment(
+                            "Horizontal inflation of the block destruction bounds.")
+                    .defineInRange("block_destruction_horizontal_range", 0.5, 0.0, 8.0);
+            blockDestructionVerticalRange = builder.comment(
+                            "Vertical inflation of the block destruction bounds.")
+                    .defineInRange("block_destruction_vertical_range", 0.5, 0.0, 8.0);
+            rangedDamageReductionRadius = builder.comment(
+                            "Damage sources beyond this three-dimensional distance are reduced.")
+                    .defineInRange("ranged_damage_reduction_radius", 4.0, 0.0, 128.0);
+            rangedDamageReduction = builder.comment(
+                            "Fraction of distant source-position damage prevented.")
+                    .defineInRange("ranged_damage_reduction", 0.2, 0.0, 1.0);
+            builder.pop();
+
+            builder.comment("Cruise scheduling.").push("cruise");
+            cruiseMinimumTicks = builder.defineInRange(
+                    "minimum_ticks", 20, 1, 1200);
+            cruiseMaximumTicks = builder.defineInRange(
+                    "maximum_ticks", 40, 1, 1200);
+            cruiseNavigationSpeed = builder.defineInRange(
+                    "navigation_speed", 1.0, 0.0, 20.0);
+            builder.pop();
+
+            builder.comment("Repeated dash and sweep rounds.").push("sweep");
+            sweepInitialWindupTicks = builder.defineInRange(
+                    "initial_windup_ticks", 20, 1, 1200);
+            sweepDashMaximumDistance = builder.defineInRange(
+                    "dash_maximum_distance", 6.0, 0.0, 128.0);
+            sweepDashDurationTicks = builder.defineInRange(
+                    "dash_duration_ticks", 8, 1, 1200);
+            sweepDashNavigationSpeed = builder.defineInRange(
+                    "dash_navigation_speed", 1.5, 0.0, 20.0);
+            sweepDashHitboxInflation = builder.defineInRange(
+                    "dash_hitbox_inflation", 0.5, 0.0, 16.0);
+            sweepDashDamageMultiplier = builder.defineInRange(
+                    "dash_damage_multiplier", 1.0, 0.0, 100.0);
+            sweepStrikeWindupTicks = builder.defineInRange(
+                    "strike_windup_ticks", 5, 1, 1200);
+            sweepStrikeRadius = builder.defineInRange(
+                    "strike_radius", 4.0, 0.1, 64.0);
+            sweepStrikeArcDegrees = builder.defineInRange(
+                    "strike_arc_degrees", 180.0, 1.0, 360.0);
+            sweepStrikeDamageMultiplier = builder.defineInRange(
+                    "strike_damage_multiplier", 1.5, 0.0, 100.0);
+            sweepParryStunTicks = builder.defineInRange(
+                    "parry_stun_ticks", 40, 1, 1200);
+            sweepRepeatProbability = builder.defineInRange(
+                    "repeat_probability", 0.5, 0.0, 1.0);
+            sweepMaximumRepeats = builder.comment(
+                            "Maximum full rounds after the initial round.")
+                    .defineInRange("maximum_repeats", 4, 0, 100);
+            secondPhaseMinimumSweepRounds = builder.comment(
+                            "Minimum total sweep rounds in phase two.")
+                    .defineInRange("second_phase_minimum_rounds", 2, 1, 101);
+            builder.pop();
+
+            builder.comment("Ground stomp.").push("stomp");
+            stompWindupTicks = builder.defineInRange(
+                    "windup_ticks", 30, 1, 1200);
+            stompRadius = builder.defineInRange("radius", 5.0, 0.1, 64.0);
+            stompDamageMultiplier = builder.defineInRange(
+                    "damage_multiplier", 1.0, 0.0, 100.0);
+            stompHorizontalKnockback = builder.defineInRange(
+                    "horizontal_knockback", 1.0, 0.0, 16.0);
+            stompMinimumVerticalVelocity = builder.defineInRange(
+                    "minimum_vertical_velocity", 0.6, 0.0, 16.0);
+            secondPhaseStompCount = builder.defineInRange(
+                    "second_phase_count", 2, 1, 100);
+            secondPhaseStompIntervalTicks = builder.defineInRange(
+                    "second_phase_interval_ticks", 10, 1, 1200);
+            builder.pop();
+
+            builder.comment("Second phase.").push("second_phase");
+            secondPhaseHealthFraction = builder.comment(
+                            "Phase two starts strictly below this health fraction.")
+                    .defineInRange("health_fraction", 0.5, 0.0, 1.0);
+            secondPhaseWindupMultiplier = builder.defineInRange(
+                    "windup_multiplier", 0.5, 0.0, 20.0);
+            secondPhaseDamageMultiplier = builder.defineInRange(
+                    "damage_multiplier", 1.2, 0.0, 20.0);
+            secondPhaseSpeedMultiplier = builder.defineInRange(
+                    "speed_multiplier", 1.2, 0.0, 20.0);
+            secondPhaseRedTint = builder.comment(
+                            "Red multiplier for the phase-two full-model tint.")
+                    .defineInRange("red_tint", 1.0, 0.0, 1.0);
+            secondPhaseGreenTint = builder.comment(
+                            "Green multiplier for the phase-two full-model tint.")
+                    .defineInRange("green_tint", 0.35, 0.0, 1.0);
+            secondPhaseBlueTint = builder.comment(
+                            "Blue multiplier for the phase-two full-model tint.")
+                    .defineInRange("blue_tint", 0.35, 0.0, 1.0);
+            builder.pop();
             builder.pop();
         }
     }
@@ -957,6 +1106,260 @@ public final class BossRefactorTwilightForestConfig {
             lastKnightChargeWindupTicks = builder.comment(
                             "Windup before each final-knight charge segment, in ticks.")
                     .defineInRange("windup_ticks", 15, 0, 1200);
+            builder.pop();
+
+            builder.pop();
+        }
+    }
+
+    public static final class SnowQueenConfig {
+        public final ForgeConfigSpec.BooleanValue enabled;
+        public final ForgeConfigSpec.IntValue cruiseMinimumTicks;
+        public final ForgeConfigSpec.IntValue cruiseMaximumTicks;
+        public final ForgeConfigSpec.BooleanValue avoidImmediateSkillRepeat;
+        public final ForgeConfigSpec.IntValue firstPhaseIceShieldCount;
+        public final ForgeConfigSpec.IntValue secondPhaseIceShieldCount;
+        public final ForgeConfigSpec.DoubleValue iceShieldOrbitRadius;
+        public final ForgeConfigSpec.DoubleValue iceShieldAngularSpeedDegreesPerTick;
+        public final ForgeConfigSpec.DoubleValue iceShieldVerticalOffset;
+        public final ForgeConfigSpec.DoubleValue secondPhaseIceShieldCollisionDamageMultiplier;
+        public final ForgeConfigSpec.DoubleValue iceShieldCollisionHitboxInflation;
+        public final ForgeConfigSpec.IntValue iceShieldCollisionDamageCooldownTicks;
+        public final ForgeConfigSpec.BooleanValue iceShieldCollisionHitsNonPlayers;
+        public final ForgeConfigSpec.IntValue slamCount;
+        public final ForgeConfigSpec.IntValue slamWindupTicks;
+        public final ForgeConfigSpec.DoubleValue slamPreparationHeight;
+        public final ForgeConfigSpec.DoubleValue slamDescentSpeed;
+        public final ForgeConfigSpec.IntValue slamMaximumDescentTicks;
+        public final ForgeConfigSpec.DoubleValue slamRadius;
+        public final ForgeConfigSpec.DoubleValue slamDamageMultiplier;
+        public final ForgeConfigSpec.BooleanValue slamHitsNonPlayers;
+        public final ForgeConfigSpec.IntValue betweenSlamsTicks;
+        public final ForgeConfigSpec.BooleanValue slamShieldCooldownEnabled;
+        public final ForgeConfigSpec.IntValue slamShieldCooldownTicks;
+        public final ForgeConfigSpec.BooleanValue slamSlashBladeParryEnabled;
+        public final ForgeConfigSpec.IntValue slamParryFeedbackTicks;
+        public final ForgeConfigSpec.IntValue chaseDurationTicks;
+        public final ForgeConfigSpec.DoubleValue chaseHeightOffset;
+        public final ForgeConfigSpec.DoubleValue chaseSpeedMultiplier;
+        public final ForgeConfigSpec.DoubleValue chaseContactDamageMultiplier;
+        public final ForgeConfigSpec.BooleanValue chaseHitsNonPlayers;
+        public final ForgeConfigSpec.IntValue chaseContactDamageIntervalTicks;
+        public final ForgeConfigSpec.DoubleValue chaseHitboxInflation;
+        public final ForgeConfigSpec.IntValue shatteredIceRainQueenWindupTicks;
+        public final ForgeConfigSpec.IntValue shatteredIceRainFirstPhaseMinimumCount;
+        public final ForgeConfigSpec.IntValue shatteredIceRainFirstPhaseMaximumCount;
+        public final ForgeConfigSpec.IntValue shatteredIceRainSecondPhaseCount;
+        public final ForgeConfigSpec.DoubleValue shatteredIceRainSpawnDistanceBehind;
+        public final ForgeConfigSpec.DoubleValue shatteredIceRainSpawnSpacing;
+        public final ForgeConfigSpec.DoubleValue shatteredIceRainSpawnVerticalOffset;
+        public final ForgeConfigSpec.IntValue shatteredIceRainCrystalWindupTicks;
+        public final ForgeConfigSpec.IntValue shatteredIceRainLaunchIntervalTicks;
+        public final ForgeConfigSpec.DoubleValue shatteredIceRainDashSpeed;
+        public final ForgeConfigSpec.IntValue shatteredIceRainMaximumDashTicks;
+        public final ForgeConfigSpec.DoubleValue shatteredIceRainDashHitboxInflation;
+        public final ForgeConfigSpec.DoubleValue shatteredIceRainDashDamageMultiplier;
+        public final ForgeConfigSpec.BooleanValue shatteredIceRainDashHitsNonPlayers;
+        public final ForgeConfigSpec.IntValue shatteredIceRainFrostedDurationTicks;
+        public final ForgeConfigSpec.IntValue shatteredIceRainFrostedAmplifier;
+        public final ForgeConfigSpec.IntValue shatteredIceRainExplosionDelayTicks;
+        public final ForgeConfigSpec.DoubleValue shatteredIceRainExplosionRadius;
+        public final ForgeConfigSpec.BooleanValue shatteredIceRainPreserveOriginalBlockInteraction;
+        public final ForgeConfigSpec.IntValue maximumLinks;
+        public final ForgeConfigSpec.DoubleValue linkSummonDamageBonus;
+        public final ForgeConfigSpec.DoubleValue linkQueenDamageReduction;
+        public final ForgeConfigSpec.IntValue linkTeleportDelayTicks;
+        public final ForgeConfigSpec.IntValue linkBurstWindupTicks;
+        public final ForgeConfigSpec.DoubleValue linkBurstRadius;
+        public final ForgeConfigSpec.DoubleValue linkBurstDamageMultiplier;
+        public final ForgeConfigSpec.BooleanValue linkBurstHitsNonPlayers;
+        public final ForgeConfigSpec.IntValue phaseTwoStableIceCoreCount;
+        public final ForgeConfigSpec.DoubleValue stableIceCoreSpawnRadius;
+        public final ForgeConfigSpec.DoubleValue stableIceCoreSpawnVerticalOffset;
+        public final ForgeConfigSpec.DoubleValue phaseTwoHealthThreshold;
+        public final ForgeConfigSpec.DoubleValue phaseTwoDamageMultiplier;
+        public final ForgeConfigSpec.DoubleValue phaseTwoSpeedMultiplier;
+        public final ForgeConfigSpec.IntValue linkRed;
+        public final ForgeConfigSpec.IntValue linkGreen;
+        public final ForgeConfigSpec.IntValue linkBlue;
+        public final ForgeConfigSpec.IntValue linkAlpha;
+        public final ForgeConfigSpec.DoubleValue linkLineWidth;
+        public final ForgeConfigSpec.DoubleValue linkMaximumRenderDistance;
+
+        private SnowQueenConfig(ForgeConfigSpec.Builder builder) {
+            builder.comment("Snow Queen combat takeover settings.").push("snow_queen");
+            enabled = builder.comment(
+                            "Enable the complete Snow Queen combat takeover.",
+                            "Changing this setting requires recreating existing Snow Queens or restarting the world/session.")
+                    .define("enabled", true);
+
+            builder.comment("Skill selection.").push("skill_selection");
+            cruiseMinimumTicks = builder.comment("Minimum cruise duration between skills, in ticks.")
+                    .defineInRange("cruise_minimum_ticks", 20, 1, 1200);
+            cruiseMaximumTicks = builder.comment("Maximum cruise duration between skills, in ticks.")
+                    .defineInRange("cruise_maximum_ticks", 40, 1, 1200);
+            avoidImmediateSkillRepeat = builder.comment("Prevent the Snow Queen from immediately repeating a skill.")
+                    .define("avoid_immediate_skill_repeat", true);
+            builder.pop();
+
+            builder.comment("Orbiting ice shields.").push("ice_shields");
+            firstPhaseIceShieldCount = builder.comment("Ice shield count during the first phase.")
+                    .defineInRange("first_phase_count", 8, 0, 8);
+            secondPhaseIceShieldCount = builder.comment("Ice shield count during the second phase.")
+                    .defineInRange("second_phase_count", 4, 0, 8);
+            iceShieldOrbitRadius = builder.comment("Horizontal orbit radius of ice shields.")
+                    .defineInRange("orbit_radius", 1.5, 0.0, 128.0);
+            iceShieldAngularSpeedDegreesPerTick = builder.comment("Ice shield orbit angle advanced each tick, in degrees.")
+                    .defineInRange("angular_speed_degrees_per_tick", 5.0, 0.0, 360.0);
+            iceShieldVerticalOffset = builder.comment("Vertical offset of orbiting ice shields.")
+                    .defineInRange("vertical_offset", 0.0, -64.0, 64.0);
+            secondPhaseIceShieldCollisionDamageMultiplier = builder.comment(
+                            "Attack-damage multiplier for second-phase ice shield collisions.")
+                    .defineInRange("second_phase_collision_damage_multiplier", 0.5, 0.0, 20.0);
+            iceShieldCollisionHitboxInflation = builder.comment("Extra collision reach around each ice shield.")
+                    .defineInRange("collision_hitbox_inflation", 0.0, 0.0, 64.0);
+            iceShieldCollisionDamageCooldownTicks = builder.comment("Ticks between ice shield collision damage pulses.")
+                    .defineInRange("collision_damage_cooldown_ticks", 10, 0, 1200);
+            iceShieldCollisionHitsNonPlayers = builder.comment("Allow ice shield collisions to hit non-player living entities.")
+                    .define("collision_hits_non_players", true);
+            builder.pop();
+
+            builder.comment("Repeated slam.").push("slam");
+            slamCount = builder.comment("Number of consecutive slams.")
+                    .defineInRange("slam_count", 2, 1, 32);
+            slamWindupTicks = builder.comment("Slam warning duration, in ticks.")
+                    .defineInRange("windup_ticks", 20, 0, 1200);
+            slamPreparationHeight = builder.comment("Height gained before descending for a slam.")
+                    .defineInRange("preparation_height", 6.0, 0.0, 128.0);
+            slamDescentSpeed = builder.comment("Downward speed during a slam.")
+                    .defineInRange("descent_speed", 1.5, 0.0, 20.0);
+            slamMaximumDescentTicks = builder.comment("Maximum slam descent duration, in ticks.")
+                    .defineInRange("maximum_descent_ticks", 30, 1, 1200);
+            slamRadius = builder.comment("Radius of each slam impact.")
+                    .defineInRange("radius", 4.0, 0.0, 128.0);
+            slamDamageMultiplier = builder.comment("Attack-damage multiplier for each slam impact.")
+                    .defineInRange("damage_multiplier", 1.5, 0.0, 20.0);
+            slamHitsNonPlayers = builder.comment("Allow slam impacts to hit non-player living entities.")
+                    .define("hits_non_players", true);
+            betweenSlamsTicks = builder.comment("Delay between consecutive slams, in ticks.")
+                    .defineInRange("between_slams_ticks", 10, 0, 1200);
+            slamShieldCooldownEnabled = builder.comment("Put a used shield on cooldown after blocking a slam.")
+                    .define("shield_cooldown_enabled", true);
+            slamShieldCooldownTicks = builder.comment("Shield cooldown after blocking a slam, in ticks.")
+                    .defineInRange("shield_cooldown_ticks", 60, 0, 1200);
+            slamSlashBladeParryEnabled = builder.comment("Allow optional SlashBlade parries against slams.")
+                    .define("slashblade_parry_enabled", true);
+            slamParryFeedbackTicks = builder.comment("Feedback duration returned after parrying a slam, in ticks.")
+                    .defineInRange("parry_feedback_ticks", 20, 1, 1200);
+            builder.pop();
+
+            builder.comment("Target chase.").push("chase");
+            chaseDurationTicks = builder.comment("Maximum chase duration, in ticks.")
+                    .defineInRange("duration_ticks", 100, 1, 1200);
+            chaseHeightOffset = builder.comment("Preferred chase height relative to the target.")
+                    .defineInRange("height_offset", 0.0, -64.0, 64.0);
+            chaseSpeedMultiplier = builder.comment("Movement-speed multiplier during chase.")
+                    .defineInRange("speed_multiplier", 1.3, 0.0, 20.0);
+            chaseContactDamageMultiplier = builder.comment("Attack-damage multiplier for each chase contact hit.")
+                    .defineInRange("contact_damage_multiplier", 1.0, 0.0, 20.0);
+            chaseHitsNonPlayers = builder.comment("Allow chase contact attacks to hit non-player living entities.")
+                    .define("hits_non_players", true);
+            chaseContactDamageIntervalTicks = builder.comment("Ticks between chase contact damage pulses.")
+                    .defineInRange("contact_damage_interval_ticks", 10, 1, 1200);
+            chaseHitboxInflation = builder.comment("Extra contact reach around the Snow Queen during chase.")
+                    .defineInRange("hitbox_inflation", 0.5, 0.0, 64.0);
+            builder.pop();
+
+            builder.comment("Shattered ice rain.").push("shattered_ice_rain");
+            shatteredIceRainQueenWindupTicks = builder.comment("Queen windup before summoning shattered ice, in ticks.")
+                    .defineInRange("queen_windup_ticks", 30, 0, 1200);
+            shatteredIceRainFirstPhaseMinimumCount = builder.comment("Minimum shattered ice count during the first phase.")
+                    .defineInRange("first_phase_minimum_count", 2, 0, 32);
+            shatteredIceRainFirstPhaseMaximumCount = builder.comment("Maximum shattered ice count during the first phase.")
+                    .defineInRange("first_phase_maximum_count", 4, 0, 32);
+            shatteredIceRainSecondPhaseCount = builder.comment("Shattered ice count during the second phase.")
+                    .defineInRange("second_phase_count", 4, 0, 32);
+            shatteredIceRainSpawnDistanceBehind = builder.comment("Distance behind the target where shattered ice starts spawning.")
+                    .defineInRange("spawn_distance_behind", 3.0, 0.0, 128.0);
+            shatteredIceRainSpawnSpacing = builder.comment("Spacing between shattered ice spawn positions.")
+                    .defineInRange("spawn_spacing", 1.5, 0.0, 128.0);
+            shatteredIceRainSpawnVerticalOffset = builder.comment("Vertical offset of shattered ice spawn positions.")
+                    .defineInRange("spawn_vertical_offset", 1.0, -64.0, 64.0);
+            shatteredIceRainCrystalWindupTicks = builder.comment("Windup before each shattered ice crystal launches, in ticks.")
+                    .defineInRange("crystal_windup_ticks", 20, 0, 1200);
+            shatteredIceRainLaunchIntervalTicks = builder.comment("Delay between shattered ice launches, in ticks.")
+                    .defineInRange("launch_interval_ticks", 10, 0, 1200);
+            shatteredIceRainDashSpeed = builder.comment("Dash speed of each shattered ice crystal.")
+                    .defineInRange("dash_speed", 1.5, 0.0, 20.0);
+            shatteredIceRainMaximumDashTicks = builder.comment("Maximum shattered ice dash duration, in ticks.")
+                    .defineInRange("maximum_dash_ticks", 30, 1, 1200);
+            shatteredIceRainDashHitboxInflation = builder.comment("Extra collision reach around each dashing ice crystal.")
+                    .defineInRange("dash_hitbox_inflation", 0.25, 0.0, 64.0);
+            shatteredIceRainDashDamageMultiplier = builder.comment("Attack-damage multiplier for a shattered ice dash hit.")
+                    .defineInRange("dash_damage_multiplier", 1.0, 0.0, 20.0);
+            shatteredIceRainDashHitsNonPlayers = builder.comment(
+                            "Allow shattered ice dashes to hit non-player living entities.")
+                    .define("dash_hits_non_players", true);
+            shatteredIceRainFrostedDurationTicks = builder.comment("Frosted effect duration after a shattered ice hit, in ticks.")
+                    .defineInRange("frosted_duration_ticks", 140, 0, 12000);
+            shatteredIceRainFrostedAmplifier = builder.comment("Zero-based amplifier of the frosted effect.")
+                    .defineInRange("frosted_amplifier", 0, 0, 255);
+            shatteredIceRainExplosionDelayTicks = builder.comment("Delay before a stopped shattered ice crystal explodes, in ticks.")
+                    .defineInRange("explosion_delay_ticks", 60, 1, 12000);
+            shatteredIceRainExplosionRadius = builder.comment("Explosion radius of a shattered ice crystal.")
+                    .defineInRange("explosion_radius", 1.0, 0.0, 128.0);
+            shatteredIceRainPreserveOriginalBlockInteraction = builder.comment(
+                            "Preserve the original block interaction behavior of shattered ice explosions.")
+                    .define("preserve_original_block_interaction", true);
+            builder.pop();
+
+            builder.comment("Summoned links.").push("links");
+            maximumLinks = builder.comment("Maximum number of active summoned links.")
+                    .defineInRange("maximum_links", 2, 0, 32);
+            linkSummonDamageBonus = builder.comment("Additional damage fraction granted by each summoned link.")
+                    .defineInRange("summon_damage_bonus", 0.3, 0.0, 20.0);
+            linkQueenDamageReduction = builder.comment("Incoming damage fraction prevented while links are active.")
+                    .defineInRange("queen_damage_reduction", 0.3, 0.0, 1.0);
+            linkTeleportDelayTicks = builder.comment("Delay before a link teleports, in ticks.")
+                    .defineInRange("teleport_delay_ticks", 20, 0, 1200);
+            linkBurstWindupTicks = builder.comment("Windup before a link burst, in ticks.")
+                    .defineInRange("burst_windup_ticks", 20, 0, 1200);
+            linkBurstRadius = builder.comment("Radius of a link burst.")
+                    .defineInRange("burst_radius", 5.0, 0.0, 128.0);
+            linkBurstDamageMultiplier = builder.comment("Attack-damage multiplier for a link burst.")
+                    .defineInRange("burst_damage_multiplier", 1.5, 0.0, 20.0);
+            linkBurstHitsNonPlayers = builder.comment("Allow link bursts to hit non-player living entities.")
+                    .define("burst_hits_non_players", true);
+            phaseTwoStableIceCoreCount = builder.comment("Stable ice cores spawned when phase two begins.")
+                    .defineInRange("phase_two_stable_ice_core_count", 2, 0, 32);
+            stableIceCoreSpawnRadius = builder.comment("Horizontal radius for stable ice core spawns.")
+                    .defineInRange("stable_ice_core_spawn_radius", 3.0, 0.0, 128.0);
+            stableIceCoreSpawnVerticalOffset = builder.comment("Vertical offset for stable ice core spawns.")
+                    .defineInRange("stable_ice_core_spawn_vertical_offset", 0.0, -64.0, 64.0);
+            builder.pop();
+
+            builder.comment("Second phase.").push("phase_two");
+            phaseTwoHealthThreshold = builder.comment("Phase two starts at or below this health fraction.")
+                    .defineInRange("health_threshold", 0.5, 0.0, 1.0);
+            phaseTwoDamageMultiplier = builder.comment("Attack-damage multiplier during phase two.")
+                    .defineInRange("damage_multiplier", 1.2, 0.0, 20.0);
+            phaseTwoSpeedMultiplier = builder.comment("Movement-speed multiplier during phase two.")
+                    .defineInRange("speed_multiplier", 1.2, 0.0, 20.0);
+            builder.pop();
+
+            builder.comment("Link visual effects.").push("visuals");
+            linkRed = builder.comment("Red channel of rendered links.")
+                    .defineInRange("link_red", 80, 0, 255);
+            linkGreen = builder.comment("Green channel of rendered links.")
+                    .defineInRange("link_green", 180, 0, 255);
+            linkBlue = builder.comment("Blue channel of rendered links.")
+                    .defineInRange("link_blue", 255, 0, 255);
+            linkAlpha = builder.comment("Alpha channel of rendered links.")
+                    .defineInRange("link_alpha", 220, 0, 255);
+            linkLineWidth = builder.comment("Requested line width for rendered links.")
+                    .defineInRange("link_line_width", 3.0, 0.0, 20.0);
+            linkMaximumRenderDistance = builder.comment("Maximum render distance for links.")
+                    .defineInRange("link_maximum_render_distance", 96.0, 0.0, 128.0);
             builder.pop();
 
             builder.pop();

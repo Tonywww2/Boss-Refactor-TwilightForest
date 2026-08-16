@@ -4,6 +4,7 @@ import com.tonywww.bossrefactortf.BossRefactorTwilightForest;
 import com.tonywww.bossrefactortf.boss.TwilightBossParryAccess;
 import com.tonywww.bossrefactortf.boss.TwilightBossParryBridge;
 import com.tonywww.bossrefactortf.boss.TwilightBossParryIntegration;
+import com.tonywww.bossrefactortf.boss.TwilightBossLeaderProfile;
 import com.tonywww.slashblade_sendims.api.leader.LeaderApi;
 import com.tonywww.slashblade_sendims.api.leader.LeaderParryDecision;
 import com.tonywww.slashblade_sendims.api.leader.LeaderProfile;
@@ -62,39 +63,44 @@ public final class TwilightForestSenDimsCompat implements TwilightBossParryBridg
                 entityType, LeaderProfile.EXTERNAL);
         if (!registered) {
             BossRefactorTwilightForest.LOGGER.error(
-                    "A conflicting Leader profile is already registered for {}",
-                    EntityType.getKey(entityType));
+                "A conflicting Leader profile is already registered for {}",
+                EntityType.getKey(entityType));
         }
         return registered;
     }
 
     @Override
     public boolean ensureActive(LivingEntity boss) {
-        if (LeaderApi.getSnapshot(boss)
-                .map(snapshot -> snapshot.profile() == LeaderProfile.EXTERNAL)
-                .orElse(false)) {
+        if (leaderProfile(boss) != TwilightBossLeaderProfile.NONE) {
             return true;
         }
-        if (!TwilightBossParryIntegration.externalLeaderTypes()
-                .contains(boss.getType())) {
-            return LeaderApi.isLeader(boss);
+        boolean strictExternal = TwilightBossParryIntegration
+            .externalLeaderTypes().contains(boss.getType());
+        boolean migrationType = TwilightBossParryIntegration
+            .managedOrExternalLeaderTypes().contains(boss.getType());
+        if (!strictExternal && !migrationType) {
+            return false;
         }
         boolean registered = LeaderApi.registerLeader(
-                boss, LeaderProfile.EXTERNAL);
-        if (!registered && !LeaderApi.isLeader(boss)) {
+            boss, LeaderProfile.EXTERNAL);
+        if (!registered
+                && leaderProfile(boss) == TwilightBossLeaderProfile.NONE) {
             BossRefactorTwilightForest.LOGGER.error(
                     "Unable to activate SenDimS Leader mechanics for {}",
                     boss.getUUID());
             return false;
         }
-        return true;
+        return leaderProfile(boss) != TwilightBossLeaderProfile.NONE;
     }
 
     @Override
-    public boolean usesExternalProfile(LivingEntity boss) {
+    public TwilightBossLeaderProfile leaderProfile(LivingEntity boss) {
         return LeaderApi.getSnapshot(boss)
-                .map(snapshot -> snapshot.profile() == LeaderProfile.EXTERNAL)
-                .orElse(false);
+                .map(snapshot -> switch (snapshot.profile()) {
+                    case MANAGED -> TwilightBossLeaderProfile.MANAGED;
+                    case EXTERNAL -> TwilightBossLeaderProfile.EXTERNAL;
+                })
+                .orElse(TwilightBossLeaderProfile.NONE);
     }
 
     @Override

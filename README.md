@@ -40,6 +40,26 @@ tint across the Naga and all of its segments, and grants one stun immunity that
 recovers every 15 seconds. All values are configured under `naga` in
 `config/bossrefactortf-common.toml`.
 
+The Minoshroom continuously breaks eligible nearby blocks while mob griefing is
+enabled and takes configured reduced damage from sources whose three-dimensional
+source position is beyond the configured radius. After each cruise interval it
+uses a ground stomp against nearby targets, or a two-stage dash-and-sweep
+sequence against more distant targets. The dash and sweep remain shield-blockable;
+the stomp bypasses shields and can only be avoided by jumping before its impact.
+Sweep sequences contain at most five total rounds, with phase two guaranteeing
+at least two. Phase two also strikes the stomp twice, applies the configured
+damage, speed, and windup multipliers, and renders the full model red. All
+timings, ranges, damage multipliers, block breaking, phase multipliers, and tint
+values are configured under `minoshroom` in
+`config/bossrefactortf-common.toml`.
+
+The Snow Queen cruises between repeated slams and shattered ice rain, with an
+eight-shield first phase that transitions at 50% health to four shields and
+stable ice cores. Linked summons render a blue connection to their living owner;
+their deaths queue the configured teleport and burst response. All Snow Queen
+mechanics and configuration values, including link visuals, are under
+`snow_queen` in `config/bossrefactortf-common.toml`.
+
 The Lich is rebuilt as a two-phase fight. Its first phase retains the original
 ranged attacks and initial shield but no longer creates the original automatic
 shadow clones. Breaking the last initial shield starts phase two and grants five
@@ -82,6 +102,8 @@ Focused dependency-free combat checks:
 .\gradlew.bat telegraphSelfTest --console=plain
 .\gradlew.bat knightPhantomCombatSelfTest --console=plain
 .\gradlew.bat alphaYetiCombatSelfTest --console=plain
+.\gradlew.bat minoshroomCombatSelfTest --console=plain
+.\gradlew.bat snowQueenCombatSelfTest --console=plain
 .\gradlew.bat urGhastCombatSelfTest --console=plain
 .\gradlew.bat nagaCombatSelfTest --console=plain
 .\gradlew.bat lichCombatSelfTest --console=plain
@@ -114,12 +136,14 @@ mod is installed.
    not already managed by SenDimS.
 6. Open and close parry windows through the integration bridge.
 
-SenDimS 1.0.21 has removed its built-in Naga control, and the target integration
-also removes its built-in Lich control. This mod deliberately registers Naga,
-Lich, Knight Phantom, and Alpha Yeti as external Leaders after a
-boss-specific compatibility review, so SenDimS owns their parry state and
-five-times parried damage while this mod owns their combat state machines.
-Because SenDimS does not initialize health for external Leaders, this mod
-applies the same `MULTIPLY_TOTAL +5.0` modifier, producing six-times maximum
-health. Never write SenDimS internal NBT directly; use `LeaderApi` and its
-public events through `compat/sendims`.
+SenDimS 1.0.21 keeps Minoshroom in its default Managed Leader set. This mod does
+not modify the SenDimS JAR or its internal NBT. After SenDimS finishes processing
+an entering Minoshroom, the compatibility layer checks the public `LeaderApi`
+snapshot. The current Managed profile is retained with SenDimS health scaling;
+once SenDimS no longer registers it, this mod activates that entity as External
+and supplies the same `MULTIPLY_TOTAL +5.0` health modifier, producing six-times
+maximum health.
+Naga, Lich, Knight Phantom, Alpha Yeti, Hydra, and the other existing external
+bosses remain strict External registrations. SenDimS owns Leader parry state and
+five-times parried damage; this mod owns combat state machines and uses only
+`LeaderApi` plus its public events through `compat/sendims`.

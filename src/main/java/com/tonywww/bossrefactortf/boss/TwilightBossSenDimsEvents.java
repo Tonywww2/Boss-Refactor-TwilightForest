@@ -27,9 +27,19 @@ public final class TwilightBossSenDimsEvents {
 
     @SubscribeEvent(priority = EventPriority.HIGHEST)
     public static void onEntityJoinLevel(EntityJoinLevelEvent event) {
-        if (!(event.getLevel() instanceof ServerLevel)
+        if (!(event.getLevel() instanceof ServerLevel serverLevel)
                 || !(event.getEntity() instanceof LivingEntity boss)
                 || !(boss instanceof TwilightBossParryAccess)) {
+            return;
+        }
+        TwilightBossLeaderProfilePolicy policy =
+                TwilightBossParryIntegration.leaderProfilePolicy(boss.getType());
+        if (policy == TwilightBossLeaderProfilePolicy.MANAGED_OR_EXTERNAL) {
+            serverLevel.getServer().execute(() -> {
+                if (!boss.isRemoved()) {
+                    synchronizeSenDimsTraits(boss);
+                }
+            });
             return;
         }
         synchronizeSenDimsTraits(boss);
@@ -46,13 +56,20 @@ public final class TwilightBossSenDimsEvents {
                 "SenDimS did not activate Leader mechanics for parryable entity "
                     + boss.getUUID());
         }
-        if (!bridge.usesExternalProfile(boss)) {
-            removeExternalHealthScale(boss);
+        TwilightBossLeaderProfile profile = bridge.leaderProfile(boss);
+        TwilightBossLeaderProfilePolicy policy =
+                TwilightBossParryIntegration.leaderProfilePolicy(boss.getType());
+        if (!policy.accepts(profile)) {
+            removeProjectExternalHealthScale(boss);
             throw new IllegalStateException(
                 "Parryable entity " + boss.getUUID()
-                    + " is not using the required SenDimS External profile");
+                    + " is not using an allowed SenDimS Leader profile");
         }
-        applyExternalHealthScale(boss);
+        if (profile == TwilightBossLeaderProfile.EXTERNAL) {
+            applyExternalHealthScale(boss);
+        } else {
+            removeProjectExternalHealthScale(boss);
+        }
     }
 
     private static void applyExternalHealthScale(LivingEntity boss) {
@@ -121,6 +138,22 @@ public final class TwilightBossSenDimsEvents {
         for (UUID modifierId : legacyScaleIds) {
             maximumHealth.removeModifier(modifierId);
         }
+        boss.setHealth(TwilightBossSenDimsRules.healthAfterScaleRemoval(
+                currentHealth, scaledMaximumHealth, boss.getMaxHealth()));
+    }
+
+    private static void removeProjectExternalHealthScale(LivingEntity boss) {
+        AttributeInstance maximumHealth = boss.getAttribute(Attributes.MAX_HEALTH);
+        if (maximumHealth == null) {
+            return;
+        }
+        if (maximumHealth.getModifier(EXTERNAL_LEADER_HEALTH_MODIFIER_ID)
+                == null) {
+            return;
+        }
+        float scaledMaximumHealth = boss.getMaxHealth();
+        float currentHealth = boss.getHealth();
+        maximumHealth.removeModifier(EXTERNAL_LEADER_HEALTH_MODIFIER_ID);
         boss.setHealth(TwilightBossSenDimsRules.healthAfterScaleRemoval(
                 currentHealth, scaledMaximumHealth, boss.getMaxHealth()));
     }

@@ -10,7 +10,7 @@ public interface TwilightBossParryBridge {
 
     boolean ensureActive(LivingEntity boss);
 
-    boolean usesExternalProfile(LivingEntity boss);
+    TwilightBossLeaderProfile leaderProfile(LivingEntity boss);
 
     boolean isParryable(LivingEntity boss);
 
