@@ -39,38 +39,6 @@ public final class NagaBodyRules {
         return previous;
     }
 
-    public static double tailSweepProgress(int elapsedTicks, int durationTicks) {
-        if (durationTicks <= 1) {
-            return 1.0;
-        }
-        return clamp((double) elapsedTicks / (durationTicks - 1));
-    }
-
-    public static boolean shouldApplyTailDamage(
-            int elapsedTicks, int durationTicks, boolean alreadyApplied) {
-        return !alreadyApplied
-                && elapsedTicks == Math.max(0, durationTicks / 2);
-    }
-
-    public static double sweepAngleRadians(
-            double progress, double halfAngleDegrees) {
-        return Math.toRadians(halfAngleDegrees * (1.0 - 2.0 * clamp(progress)));
-    }
-
-    public static TailPoseWeights tailPoseWeights(double progress) {
-        double clampedProgress = clamp(progress);
-        if (clampedProgress <= 0.5) {
-            double frontWeight = clampedProgress * 2.0;
-            return new TailPoseWeights(1.0 - frontWeight, frontWeight, 0.0);
-        }
-        double endWeight = (clampedProgress - 0.5) * 2.0;
-        return new TailPoseWeights(0.0, 1.0 - endWeight, endWeight);
-    }
-
-    private static double clamp(double value) {
-        return Math.max(0.0, Math.min(1.0, value));
-    }
-
     public record Point(double x, double y, double z) {
         public double distanceTo(Point other) {
             double deltaX = other.x - x;
@@ -87,9 +55,5 @@ public final class NagaBodyRules {
                     y + (other.y - y) * progress,
                     z + (other.z - z) * progress);
         }
-    }
-
-    public record TailPoseWeights(
-            double start, double front, double end) {
     }
 }

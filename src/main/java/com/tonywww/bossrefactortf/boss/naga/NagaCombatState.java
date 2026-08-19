@@ -1,6 +1,7 @@
 package com.tonywww.bossrefactortf.boss.naga;
 
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.Tag;
 
 import javax.annotation.Nullable;
 import java.util.UUID;
@@ -10,9 +11,8 @@ public final class NagaCombatState {
     NagaSkill lastSkill = NagaSkill.NONE;
     int stateTicks;
     int stateDuration;
+    int chargeCooldown;
     int pounceCooldown;
-    int tailCooldown;
-    boolean tailDamageApplied;
     int venomCooldown;
     double lockedX;
     double lockedY;
@@ -24,6 +24,7 @@ public final class NagaCombatState {
     int stunImmunityRecoveryTicks;
     int fireSnakeTicks;
     int fireSnakeElapsedTicks;
+    int fireSnakeCooldownTicks;
     boolean hasLastFirePoint;
     double lastFirePointX;
     double lastFirePointY;
@@ -34,13 +35,13 @@ public final class NagaCombatState {
 
     public CompoundTag save() {
         CompoundTag tag = new CompoundTag();
-        tag.putInt("ActionState", actionState.ordinal());
-        tag.putInt("LastSkill", lastSkill.ordinal());
+        tag.putInt("SchemaVersion", 2);
+        tag.putString("ActionStateId", actionState.id());
+        tag.putString("LastSkillId", lastSkill.id());
         tag.putInt("StateTicks", stateTicks);
         tag.putInt("StateDuration", stateDuration);
+        tag.putInt("ChargeCooldown", chargeCooldown);
         tag.putInt("PounceCooldown", pounceCooldown);
-        tag.putInt("TailCooldown", tailCooldown);
-        tag.putBoolean("TailDamageApplied", tailDamageApplied);
         tag.putInt("VenomCooldown", venomCooldown);
         tag.putDouble("LockedX", lockedX);
         tag.putDouble("LockedY", lockedY);
@@ -52,6 +53,7 @@ public final class NagaCombatState {
         tag.putInt("StunImmunityRecoveryTicks", stunImmunityRecoveryTicks);
         tag.putInt("FireSnakeTicks", fireSnakeTicks);
         tag.putInt("FireSnakeElapsedTicks", fireSnakeElapsedTicks);
+        tag.putInt("FireSnakeCooldownTicks", fireSnakeCooldownTicks);
         tag.putBoolean("HasLastFirePoint", hasLastFirePoint);
         tag.putDouble("LastFirePointX", lastFirePointX);
         tag.putDouble("LastFirePointY", lastFirePointY);
@@ -63,14 +65,17 @@ public final class NagaCombatState {
         return tag;
     }
 
-    public void load(CompoundTag tag) {
-        actionState = NagaActionState.byId(tag.getInt("ActionState"));
-        lastSkill = NagaSkill.byId(tag.getInt("LastSkill"));
+    public void load(CompoundTag tag, int configuredFireSnakeCooldownTicks) {
+        actionState = tag.contains("ActionStateId", Tag.TAG_STRING)
+                ? NagaActionState.byId(tag.getString("ActionStateId"))
+                : NagaActionState.fromLegacyOrdinal(tag.getInt("ActionState"));
+        lastSkill = tag.contains("LastSkillId", Tag.TAG_STRING)
+                ? NagaSkill.byId(tag.getString("LastSkillId"))
+                : NagaSkill.fromLegacyOrdinal(tag.getInt("LastSkill"));
         stateTicks = nonNegative(tag.getInt("StateTicks"));
         stateDuration = nonNegative(tag.getInt("StateDuration"));
+        chargeCooldown = nonNegative(tag.getInt("ChargeCooldown"));
         pounceCooldown = nonNegative(tag.getInt("PounceCooldown"));
-        tailCooldown = nonNegative(tag.getInt("TailCooldown"));
-        tailDamageApplied = tag.getBoolean("TailDamageApplied");
         venomCooldown = nonNegative(tag.getInt("VenomCooldown"));
         lockedX = tag.getDouble("LockedX");
         lockedY = tag.getDouble("LockedY");
@@ -84,6 +89,11 @@ public final class NagaCombatState {
         fireSnakeTicks = nonNegative(tag.getInt("FireSnakeTicks"));
         fireSnakeElapsedTicks = nonNegative(
                 tag.getInt("FireSnakeElapsedTicks"));
+        fireSnakeCooldownTicks = tag.contains("FireSnakeCooldownTicks")
+                ? nonNegative(tag.getInt("FireSnakeCooldownTicks"))
+                : secondPhase && fireSnakeTicks == 0
+                        ? Math.max(0, configuredFireSnakeCooldownTicks)
+                        : 0;
         hasLastFirePoint = tag.getBoolean("HasLastFirePoint");
         lastFirePointX = tag.getDouble("LastFirePointX");
         lastFirePointY = tag.getDouble("LastFirePointY");

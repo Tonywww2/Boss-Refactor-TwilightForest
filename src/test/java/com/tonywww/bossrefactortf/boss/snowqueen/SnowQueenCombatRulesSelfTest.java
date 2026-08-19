@@ -14,30 +14,19 @@ public final class SnowQueenCombatRulesSelfTest {
     }
 
     public static void main(String[] args) {
-        check(SnowQueenCombatRules.cruiseTicks(20, 40, 0.0) == 20,
-                "a zero cruise roll must select the minimum");
-        check(SnowQueenCombatRules.cruiseTicks(20, 40, 1.0) == 40,
-                "a one cruise roll must select the maximum");
-        check(SnowQueenCombatRules.cruiseTicks(40, 20, 0.5) == 30,
-                "cruise bounds must be normalized before rolling");
-        check(SnowQueenCombatRules.chooseSkill(
-                        SnowQueenSkill.REPEATED_SLAM, true, false)
-                        == SnowQueenSkill.SHATTERED_ICE_RAIN,
-                "repeat prevention must select the other skill");
-        check(SnowQueenCombatRules.chooseSkill(
-                        SnowQueenSkill.REPEATED_SLAM, false, false)
-                        == SnowQueenSkill.REPEATED_SLAM,
-                "disabled repeat prevention must allow a repeated skill");
-        check(SnowQueenCombatRules.shieldCount(-1, 8) == 0,
+        check(SnowQueenCombatRules.shieldCount(-1, 6) == 0,
                 "shield counts must clamp below zero");
-        check(SnowQueenCombatRules.shieldCount(9, 8) == 8,
+        check(SnowQueenCombatRules.shieldCount(9, 6) == 6,
                 "shield counts must clamp to available capacity");
-        checkClose(SnowQueenCombatRules.shieldAngleDegrees(1, 8, 0, 0.0),
-                45.0, "eight shields must be forty-five degrees apart");
-        checkClose(SnowQueenCombatRules.shieldAngleDegrees(1, 4, 0, 0.0),
-                90.0, "four shields must be ninety degrees apart");
-        checkClose(SnowQueenCombatRules.shieldAngleDegrees(1, 8, 3, 5.0),
-                60.0, "shield angular speed must advance every tick");
+        checkClose(SnowQueenCombatRules.shieldAngleDegrees(1, 6, 0, 0.0),
+                60.0, "six shields must be sixty degrees apart");
+        checkClose(SnowQueenCombatRules.shieldWaveOffset(1, 6, 0, 0.4, 6.0),
+                0.2 * Math.sqrt(3.0),
+                "adjacent shields must use staggered wave phases");
+        checkClose(SnowQueenCombatRules.shieldWaveOffset(0, 6, 15, 0.4, 6.0),
+                0.4, "shield waves must advance with tick count");
+        checkClose(SnowQueenCombatRules.shieldWaveOffset(0, 0, 15, 0.4, 6.0),
+                0.0, "empty shield waves must remain at zero");
         check(SnowQueenCombatRules.isSecondPhase(50.0F, 100.0F, 0.5),
                 "exactly half health must enter the second phase");
         check(!SnowQueenCombatRules.isSecondPhase(50.01F, 100.0F, 0.5),
@@ -51,6 +40,12 @@ public final class SnowQueenCombatRulesSelfTest {
                 "damage must scale by the configured multiplier");
         checkClose(SnowQueenCombatRules.scaledDamage(-10.0, 1.5), 0.0,
                 "scaled damage must not be negative");
+        check(SnowQueenCombatRules.fallingIceCooldownBeforeWindup(
+                        160, 20) == 140,
+                "falling ice windup must fit inside the impact interval");
+        check(SnowQueenCombatRules.fallingIceCooldownBeforeWindup(
+                        10, 20) == 1,
+                "falling ice cooldowns must remain positive");
 
         checkConfigDefaults();
         checkStateRoundTrip();
@@ -61,73 +56,41 @@ public final class SnowQueenCombatRulesSelfTest {
         BossRefactorTwilightForestConfig.SnowQueenConfig config =
                 BossRefactorTwilightForestConfig.SNOW_QUEEN;
         check(config.enabled.getDefault(), "Snow Queen combat must be enabled");
-        check(config.cruiseMinimumTicks.getDefault() == 20,
-                "minimum cruise must default to twenty ticks");
-        check(config.cruiseMaximumTicks.getDefault() == 40,
-                "maximum cruise must default to forty ticks");
-        check(config.avoidImmediateSkillRepeat.getDefault(),
-                "skill repeats must be avoided by default");
-
-        check(config.firstPhaseIceShieldCount.getDefault() == 8,
-                "first phase must use eight ice shields");
-        check(config.secondPhaseIceShieldCount.getDefault() == 4,
-                "second phase must use four ice shields");
+        check(config.firstPhaseIceShieldCount.getDefault() == 6,
+                "first phase must use six ice shields");
+        check(config.secondPhaseIceShieldCount.getDefault() == 6,
+                "second phase must use six ice shields");
         checkClose(config.iceShieldOrbitRadius.getDefault(), 1.5,
                 "ice shields must use the default orbit radius");
         checkClose(config.iceShieldAngularSpeedDegreesPerTick.getDefault(), 5.0,
                 "ice shields must use the default angular speed");
+        checkClose(config.iceShieldWaveAmplitude.getDefault(), 0.4,
+                "ice shields must use the default wave amplitude");
+        checkClose(config.iceShieldWaveSpeedDegreesPerTick.getDefault(), 6.0,
+                "ice shields must use the default wave speed");
         checkClose(config.iceShieldVerticalOffset.getDefault(), 0.0,
                 "ice shields must use no vertical offset by default");
-        checkClose(config.secondPhaseIceShieldCollisionDamageMultiplier.getDefault(), 0.5,
-                "second-phase shield damage must default to one half");
+        checkClose(config.iceShieldCollisionDamageMultiplier.getDefault(), 1.0,
+                "shield damage must default to base attack damage");
         checkClose(config.iceShieldCollisionHitboxInflation.getDefault(), 0.0,
                 "shield collision inflation must default to zero");
         check(config.iceShieldCollisionDamageCooldownTicks.getDefault() == 10,
                 "shield collision cooldown must default to ten ticks");
         check(config.iceShieldCollisionHitsNonPlayers.getDefault(),
                 "shield collisions must hit non-players by default");
+        check(config.iceShieldShieldCooldownEnabled.getDefault(),
+                "shield blocks must apply the configured cooldown");
+        check(config.iceShieldShieldCooldownTicks.getDefault() == 60,
+                "shield block cooldown must default to sixty ticks");
+        check(config.iceShieldSlashBladeParryEnabled.getDefault(),
+                "shield SlashBlade parries must be enabled by default");
+        check(config.iceShieldParryFeedbackTicks.getDefault() == 20,
+                "shield parry feedback must default to twenty ticks");
 
-        check(config.slamCount.getDefault() == 2,
-                "slams must default to two impacts");
-        check(config.slamWindupTicks.getDefault() == 20,
-                "slam windup must default to twenty ticks");
-        checkClose(config.slamPreparationHeight.getDefault(), 6.0,
-                "slam preparation height must default to six");
-        checkClose(config.slamDescentSpeed.getDefault(), 1.5,
-                "slam descent speed must default to one and a half");
-        check(config.slamMaximumDescentTicks.getDefault() == 30,
-                "slam descent must cap at thirty ticks");
-        checkClose(config.slamRadius.getDefault(), 4.0,
-                "slam radius must default to four");
-        checkClose(config.slamDamageMultiplier.getDefault(), 1.5,
-                "slam damage must default to one and a half");
-        check(config.slamHitsNonPlayers.getDefault(),
-                "slams must hit non-players by default");
-        check(config.betweenSlamsTicks.getDefault() == 10,
-                "the delay between slams must default to ten ticks");
-        check(config.slamShieldCooldownEnabled.getDefault(),
-                "slam shield cooldowns must be enabled by default");
-        check(config.slamShieldCooldownTicks.getDefault() == 60,
-                "slam shield cooldown must default to sixty ticks");
-        check(config.slamSlashBladeParryEnabled.getDefault(),
-                "slam SlashBlade parries must be enabled by default");
-        check(config.slamParryFeedbackTicks.getDefault() == 20,
-                "slam parry feedback must default to twenty ticks");
-
-        check(config.chaseDurationTicks.getDefault() == 100,
-                "chase duration must default to one hundred ticks");
         checkClose(config.chaseHeightOffset.getDefault(), 0.0,
-                "chase height offset must default to zero");
+                "original hover height offset must default to zero");
         checkClose(config.chaseSpeedMultiplier.getDefault(), 1.3,
-                "chase speed must default to one point three");
-        checkClose(config.chaseContactDamageMultiplier.getDefault(), 1.0,
-                "chase damage must default to base attack damage");
-        check(config.chaseHitsNonPlayers.getDefault(),
-                "chase contact must hit non-players by default");
-        check(config.chaseContactDamageIntervalTicks.getDefault() == 10,
-                "chase contact interval must default to ten ticks");
-        checkClose(config.chaseHitboxInflation.getDefault(), 0.5,
-                "chase hitbox inflation must default to one half");
+                "original hover speed must default to one point three");
 
         check(config.shatteredIceRainQueenWindupTicks.getDefault() == 30,
                 "rain windup must default to thirty ticks");
@@ -135,8 +98,10 @@ public final class SnowQueenCombatRulesSelfTest {
                 "rain minimum count must default to two");
         check(config.shatteredIceRainFirstPhaseMaximumCount.getDefault() == 4,
                 "rain maximum count must default to four");
-        check(config.shatteredIceRainSecondPhaseCount.getDefault() == 4,
-                "phase-two rain count must default to four");
+        check(config.shatteredIceRainSecondPhaseMinimumCount.getDefault() == 3,
+                "phase-two rain minimum count must default to three");
+        check(config.shatteredIceRainSecondPhaseMaximumCount.getDefault() == 4,
+                "phase-two rain maximum count must default to four");
         checkClose(config.shatteredIceRainSpawnDistanceBehind.getDefault(), 3.0,
                 "rain spawn distance must default to three");
         checkClose(config.shatteredIceRainSpawnSpacing.getDefault(), 1.5,
@@ -165,8 +130,6 @@ public final class SnowQueenCombatRulesSelfTest {
                 "rain explosion delay must default to sixty ticks");
         checkClose(config.shatteredIceRainExplosionRadius.getDefault(), 1.0,
                 "rain explosion radius must default to one");
-        check(config.shatteredIceRainPreserveOriginalBlockInteraction.getDefault(),
-                "rain block interaction must be preserved by default");
 
         check(config.maximumLinks.getDefault() == 2,
                 "maximum links must default to two");
@@ -174,22 +137,16 @@ public final class SnowQueenCombatRulesSelfTest {
                 "link summon damage bonus must default to zero point three");
         checkClose(config.linkQueenDamageReduction.getDefault(), 0.3,
                 "link queen damage reduction must default to zero point three");
+        check(config.linkEstablishWindupTicks.getDefault() == 20,
+                "link establishment windup must default to twenty ticks");
         check(config.linkTeleportDelayTicks.getDefault() == 20,
                 "link teleport delay must default to twenty ticks");
-        check(config.linkBurstWindupTicks.getDefault() == 20,
-                "link burst windup must default to twenty ticks");
         checkClose(config.linkBurstRadius.getDefault(), 5.0,
                 "link burst radius must default to five");
         checkClose(config.linkBurstDamageMultiplier.getDefault(), 1.5,
                 "link burst damage must default to one and a half");
         check(config.linkBurstHitsNonPlayers.getDefault(),
                 "link bursts must hit non-players by default");
-        check(config.phaseTwoStableIceCoreCount.getDefault() == 2,
-                "phase two must spawn two stable ice cores");
-        checkClose(config.stableIceCoreSpawnRadius.getDefault(), 3.0,
-                "stable core spawn radius must default to three");
-        checkClose(config.stableIceCoreSpawnVerticalOffset.getDefault(), 0.0,
-                "stable core vertical offset must default to zero");
 
         checkClose(config.phaseTwoHealthThreshold.getDefault(), 0.5,
                 "phase-two threshold must default to fifty percent");
@@ -197,6 +154,20 @@ public final class SnowQueenCombatRulesSelfTest {
                 "phase-two damage must default to one point two");
         checkClose(config.phaseTwoSpeedMultiplier.getDefault(), 1.2,
                 "phase-two speed must default to one point two");
+        check(config.fallingIceIntervalTicks.getDefault() == 160,
+                "falling ice interval must default to one hundred sixty ticks");
+        check(config.fallingIceWindupTicks.getDefault() == 20,
+                "falling ice windup must default to twenty ticks");
+        checkClose(config.fallingIceRadius.getDefault(), 2.5,
+                "falling ice radius must default to two point five");
+        check(config.fallingIceCount.getDefault() == 6,
+                "falling ice count must default to six");
+        checkClose(config.fallingIceSpawnHeight.getDefault(), 10.0,
+                "falling ice spawn height must default to ten");
+        checkClose(config.fallingIceDamageMultiplier.getDefault(), 1.0,
+                "falling ice damage must default to base attack damage");
+        check(config.fallingIceHitsNonPlayers.getDefault(),
+                "falling ice must hit non-players by default");
 
         check(config.linkRed.getDefault() == 80,
                 "link red must default to eighty");
@@ -217,21 +188,34 @@ public final class SnowQueenCombatRulesSelfTest {
         UUID owned = UUID.randomUUID();
         UUID rain = UUID.randomUUID();
         UUID cooldownTarget = UUID.randomUUID();
+        UUID preferredLink = UUID.randomUUID();
+        UUID parryActor = UUID.randomUUID();
         AttackTelegraph telegraph = new AttackTelegraph(
                 AttackTelegraphShape.CIRCLE,
                 1.0F, 2.0F, 3.0F,
                 0.0F, 1.0F, 4.0F, 0.0F, 4.0F, 0.75F);
         SnowQueenCombatState savedState = new SnowQueenCombatState();
-        savedState.actionState = SnowQueenActionState.LINK_BURST_WINDUP;
-        savedState.lastSkill = SnowQueenSkill.SHATTERED_ICE_RAIN;
-        savedState.stateTicks = 7;
-        savedState.stateDuration = 20;
-        savedState.slamsCompleted = 1;
         savedState.secondPhase = true;
+        savedState.rainRoundActive = true;
+        savedState.rainRoundCompleted = true;
+        savedState.rainVolleySpawned = true;
+        savedState.rainQueenWindupRemaining = 8;
+        savedState.linkEstablishTicks = 7;
+        savedState.preferredLinkUuid = preferredLink;
+        savedState.linkTeleportRemaining = 9;
+        savedState.fallingIceCooldown = 160;
+        savedState.fallingIcePending = true;
+        savedState.fallingIceRemaining = 12;
+        savedState.fallingIceTotal = 20;
+        savedState.fallingIceVisualSpawned = true;
+        savedState.fallingIceX = 4.5;
+        savedState.fallingIceY = 64.0;
+        savedState.fallingIceZ = -7.25;
         savedState.lockedX = 10.5;
         savedState.lockedY = 64.0;
         savedState.lockedZ = -3.25;
         savedState.lastParryGameTime = 1234L;
+        savedState.lastParryActorUuid = parryActor;
         savedState.currentTelegraph = telegraph;
         savedState.linkedSummons.add(linked);
         savedState.ownedSummons.add(owned);
@@ -240,17 +224,37 @@ public final class SnowQueenCombatRulesSelfTest {
         savedState.linkDeathPositions.addLast(new Vec3(-4.0, 5.5, 6.0));
         savedState.shieldCollisionCooldowns.put(cooldownTarget, 4321L);
 
+        CompoundTag savedTag = savedState.save();
         SnowQueenCombatState loadedState = new SnowQueenCombatState();
-        loadedState.load(savedState.save());
-        check(loadedState.actionState == SnowQueenActionState.LINK_BURST_WINDUP,
-                "action state must survive an NBT round-trip");
-        check(loadedState.lastSkill == SnowQueenSkill.SHATTERED_ICE_RAIN,
-                "last skill must survive an NBT round-trip");
-        check(loadedState.stateTicks == 7 && loadedState.stateDuration == 20
-                        && loadedState.slamsCompleted == 1,
-                "combat ticks must survive an NBT round-trip");
+        loadedState.load(savedTag);
+        check(!savedTag.contains("ActionState")
+                        && !savedTag.contains("LastSkill")
+                        && !savedTag.contains("StateTicks")
+                        && !savedTag.contains("StateDuration")
+                        && !savedTag.contains("SlamsCompleted"),
+                "obsolete action-state data must not be written to NBT");
         check(loadedState.secondPhase,
                 "second-phase state must survive an NBT round-trip");
+        check(loadedState.rainRoundActive && loadedState.rainRoundCompleted
+                        && loadedState.rainVolleySpawned
+                        && loadedState.rainQueenWindupRemaining == 8,
+                "rain round state must survive an NBT round-trip");
+        check(loadedState.linkEstablishTicks == 7
+                        && preferredLink.equals(loadedState.preferredLinkUuid)
+                        && loadedState.linkTeleportRemaining == 9,
+                "link timing and preferred summon must survive an NBT round-trip");
+        check(loadedState.fallingIceCooldown == 160
+                        && loadedState.fallingIcePending
+                        && loadedState.fallingIceRemaining == 12
+                        && loadedState.fallingIceTotal == 20
+                        && loadedState.fallingIceVisualSpawned,
+                "falling ice timing state must survive an NBT round-trip");
+        checkClose(loadedState.fallingIceX, 4.5,
+                "falling ice X must survive an NBT round-trip");
+        checkClose(loadedState.fallingIceY, 64.0,
+                "falling ice Y must survive an NBT round-trip");
+        checkClose(loadedState.fallingIceZ, -7.25,
+                "falling ice Z must survive an NBT round-trip");
         checkClose(loadedState.lockedX, 10.5,
                 "locked X must survive an NBT round-trip");
         checkClose(loadedState.lockedY, 64.0,
@@ -259,6 +263,8 @@ public final class SnowQueenCombatRulesSelfTest {
                 "locked Z must survive an NBT round-trip");
         check(loadedState.lastParryGameTime == 1234L,
                 "parry timestamp must survive an NBT round-trip");
+        check(parryActor.equals(loadedState.lastParryActorUuid),
+                "parry actor must survive an NBT round-trip");
         check(loadedState.linkedSummons.contains(linked)
                         && loadedState.ownedSummons.contains(owned)
                         && loadedState.rainVolley.contains(rain),

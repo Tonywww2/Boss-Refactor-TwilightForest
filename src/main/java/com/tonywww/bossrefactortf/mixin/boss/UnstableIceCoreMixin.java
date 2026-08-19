@@ -11,12 +11,14 @@ import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.level.Explosion;
 import net.minecraft.world.level.Level;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Constant;
+import org.spongepowered.asm.mixin.injection.Group;
 import org.spongepowered.asm.mixin.injection.ModifyConstant;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import twilightforest.entity.monster.BaseIceMob;
@@ -125,6 +127,50 @@ public abstract class UnstableIceCoreMixin extends BaseIceMob
                 : originalRadius;
     }
 
+        @Group(name = "ownedRainExplosionInteraction", min = 1, max = 1)
+        @Redirect(
+            method = {"tickDeath", "m_6153_"},
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lnet/minecraft/world/level/Level;explode(Lnet/minecraft/world/entity/Entity;DDDFLnet/minecraft/world/level/Level$ExplosionInteraction;)Lnet/minecraft/world/level/Explosion;"),
+            require = 0,
+            remap = false)
+    private Explosion bossRefactorTF$preventOwnedRainBlockDamageMcp(
+            Level level, Entity source,
+            double x, double y, double z, float radius,
+            Level.ExplosionInteraction interaction) {
+        return bossRefactorTF$explodeWithoutOwnedRainBlockDamage(
+                level, source, x, y, z, radius, interaction);
+    }
+
+    @Group(name = "ownedRainExplosionInteraction", min = 1, max = 1)
+    @Redirect(
+            method = {"tickDeath", "m_6153_"},
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lnet/minecraft/world/level/Level;m_254849_(Lnet/minecraft/world/entity/Entity;DDDFLnet/minecraft/world/level/Level$ExplosionInteraction;)Lnet/minecraft/world/level/Explosion;"),
+            require = 0,
+            remap = false)
+    private Explosion bossRefactorTF$preventOwnedRainBlockDamageSrg(
+            Level level, Entity source,
+            double x, double y, double z, float radius,
+            Level.ExplosionInteraction interaction) {
+        return bossRefactorTF$explodeWithoutOwnedRainBlockDamage(
+                level, source, x, y, z, radius, interaction);
+    }
+
+    @Unique
+    private Explosion bossRefactorTF$explodeWithoutOwnedRainBlockDamage(
+            Level level, Entity source,
+            double x, double y, double z, float radius,
+            Level.ExplosionInteraction interaction) {
+        return level.explode(
+                source, x, y, z, radius,
+                bossRefactorTF$isOwnedRainCore()
+                        ? Level.ExplosionInteraction.NONE
+                        : interaction);
+    }
+
     @Redirect(
             method = {"tickDeath", "m_6153_"},
             at = @At(
@@ -134,9 +180,7 @@ public abstract class UnstableIceCoreMixin extends BaseIceMob
             remap = false)
     private void bossRefactorTF$configureBlockTransformation(
             UnstableIceCore core) {
-        if (!bossRefactorTF$isOwnedRainCore()
-                || BossRefactorTwilightForestConfig.SNOW_QUEEN
-                        .shatteredIceRainPreserveOriginalBlockInteraction.get()) {
+        if (!bossRefactorTF$isOwnedRainCore()) {
             transformBlocks();
         }
     }

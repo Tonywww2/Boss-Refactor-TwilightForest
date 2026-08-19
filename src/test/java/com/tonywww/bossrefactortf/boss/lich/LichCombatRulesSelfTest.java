@@ -103,6 +103,7 @@ public final class LichCombatRulesSelfTest {
         savedState.cloneLifetimeTicks = 180;
         savedState.shieldBashEmpowered = true;
         savedState.shieldBashParried = true;
+        savedState.secondPhasePending = true;
         LichCombatState loadedState = new LichCombatState();
         loadedState.load(savedState.save());
         check(loadedState.actionState == LichActionState.SHIELD_BASH_WINDUP,
@@ -119,6 +120,8 @@ public final class LichCombatRulesSelfTest {
                 "clone lifetime must survive an NBT round-trip");
         check(loadedState.shieldBashEmpowered && loadedState.shieldBashParried,
                 "shield bash flags must survive an NBT round-trip");
+        check(loadedState.secondPhasePending,
+                "deferred phase transition must survive an NBT round-trip");
 
         BossRefactorTwilightForestConfig.LichConfig config =
                 BossRefactorTwilightForestConfig.LICH;

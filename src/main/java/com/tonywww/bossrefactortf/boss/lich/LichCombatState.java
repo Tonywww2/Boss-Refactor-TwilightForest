@@ -18,6 +18,7 @@ public final class LichCombatState {
     int shieldLayers;
     boolean shieldBashEmpowered;
     boolean shieldBashParried;
+    boolean secondPhasePending;
     boolean customClone;
     double originX;
     double originY;
@@ -49,6 +50,7 @@ public final class LichCombatState {
         tag.putInt("ShieldLayers", shieldLayers);
         tag.putBoolean("ShieldBashEmpowered", shieldBashEmpowered);
         tag.putBoolean("ShieldBashParried", shieldBashParried);
+        tag.putBoolean("SecondPhasePending", secondPhasePending);
         tag.putBoolean("CustomClone", customClone);
         tag.putDouble("OriginX", originX);
         tag.putDouble("OriginY", originY);
@@ -77,6 +79,7 @@ public final class LichCombatState {
         shieldLayers = nonNegative(tag.getInt("ShieldLayers"));
         shieldBashEmpowered = tag.getBoolean("ShieldBashEmpowered");
         shieldBashParried = tag.getBoolean("ShieldBashParried");
+        secondPhasePending = tag.getBoolean("SecondPhasePending");
         customClone = tag.getBoolean("CustomClone");
         originX = tag.getDouble("OriginX");
         originY = tag.getDouble("OriginY");

@@ -2,8 +2,6 @@ package com.tonywww.bossrefactortf.boss.naga;
 
 public enum NagaBodyPose {
     TRAIL,
-    TAIL_WINDUP,
-    TAIL_STRIKE,
     FROZEN;
 
     public static NagaBodyPose byId(int id) {

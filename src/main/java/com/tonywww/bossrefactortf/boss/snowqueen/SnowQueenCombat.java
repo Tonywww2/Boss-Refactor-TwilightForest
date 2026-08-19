@@ -3,21 +3,26 @@ package com.tonywww.bossrefactortf.boss.snowqueen;
 import com.tonywww.bossrefactortf.BossRefactorTwilightForest;
 import com.tonywww.bossrefactortf.boss.TwilightBossParryAccess;
 import com.tonywww.bossrefactortf.boss.TwilightBossParryIntegration;
+import com.tonywww.bossrefactortf.boss.alphayeti.AlphaYetiCombatRules;
+import com.tonywww.bossrefactortf.boss.alphayeti.AlphaYetiFallingIceAccess;
 import com.tonywww.bossrefactortf.config.BossRefactorTwilightForestConfig;
 import com.tonywww.bossrefactortf.telegraph.AttackTelegraph;
 import com.tonywww.bossrefactortf.telegraph.AttackTelegraphShape;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.MoverType;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.ShieldItem;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import twilightforest.entity.boss.SnowQueen;
@@ -25,6 +30,7 @@ import twilightforest.entity.boss.SnowQueenIceShield;
 import twilightforest.entity.monster.BaseIceMob;
 import twilightforest.entity.monster.StableIceCore;
 import twilightforest.entity.monster.UnstableIceCore;
+import twilightforest.entity.projectile.FallingIce;
 import twilightforest.init.TFEntities;
 import twilightforest.init.TFMobEffects;
 
@@ -37,15 +43,15 @@ public final class SnowQueenCombat {
     private static final UUID PHASE_ATTACK_MODIFIER_ID = UUID.fromString(
             "d2b8161b-46df-4059-a6e8-ad22cfe2841b");
     private static final UUID PHASE_MOVEMENT_MODIFIER_ID = UUID.fromString(
-            "0e1e5dfa-e497-4f58-8029-20968a38f563");
+        "0e1e5dfa-e497-4f58-8029-20968a38f563");
     private static final UUID PHASE_FLYING_MODIFIER_ID = UUID.fromString(
-            "66e2fa9f-60c7-4dfa-bd0a-b26595b8315d");
+        "66e2fa9f-60c7-4dfa-bd0a-b26595b8315d");
     private static final String PHASE_ATTACK_MODIFIER_NAME =
-            "BossRefactorTF Snow Queen phase attack";
+        "BossRefactorTF Snow Queen phase attack";
     private static final String PHASE_MOVEMENT_MODIFIER_NAME =
-            "BossRefactorTF Snow Queen phase movement";
+        "BossRefactorTF Snow Queen phase movement";
     private static final String PHASE_FLYING_MODIFIER_NAME =
-            "BossRefactorTF Snow Queen phase flying";
+        "BossRefactorTF Snow Queen phase flying";
 
     private SnowQueenCombat() {
     }
@@ -60,65 +66,66 @@ public final class SnowQueenCombat {
                 : customCombatEnabled();
     }
 
-    public static boolean hasCombatWork(SnowQueen queen) {
-        SnowQueenCombatState state = state(queen);
-        return state.actionState != SnowQueenActionState.IDLE
-                || !state.linkDeathPositions.isEmpty()
-                || isRetainableTarget(queen, queen.getTarget())
-                || acquireTarget(queen) != null;
-    }
-
-    public static void startIfIdle(SnowQueen queen) {
-        SnowQueenCombatState state = state(queen);
-        if (state.actionState != SnowQueenActionState.IDLE) {
-            return;
-        }
-        if (!state.linkDeathPositions.isEmpty()) {
-            beginLinkTeleportDelay(queen, state);
-            return;
-        }
-        if (ensureTarget(queen) != null) {
-            beginCruise(queen);
-        }
-    }
-
-    public static void stopWhenUnusable(SnowQueen queen) {
-        if (!customCombatEnabled()) {
-            resetCombat(queen);
-            return;
-        }
-        if (state(queen).actionState == SnowQueenActionState.CRUISE
-                && ensureTarget(queen) == null) {
-            enterIdle(queen);
-        }
-    }
-
-    public static void tick(SnowQueen queen) {
+    public static void tickSidecar(SnowQueen queen) {
         if (queen.level().isClientSide() || !customCombatEnabled()) {
             return;
         }
         SnowQueenCombatState state = state(queen);
         checkSecondPhase(queen, state);
         pruneSummonReferences(queen, state);
-        if (!state.linkDeathPositions.isEmpty()
-                && state.actionState != SnowQueenActionState.LINK_TELEPORT_DELAY
-                && state.actionState != SnowQueenActionState.LINK_BURST_WINDUP) {
-            beginLinkTeleportDelay(queen, state);
+        if (queen.getCurrentPhase() == SnowQueen.Phase.SUMMON
+                && !state.rainRoundActive
+                && !state.rainRoundCompleted) {
+            beginRainRound(state);
         }
-
-        switch (state.actionState) {
-            case IDLE -> startIfIdle(queen);
-            case CRUISE -> tickCruise(queen, state);
-            case SLAM_WINDUP -> tickSlamWindup(queen, state);
-            case SLAM_DESCENT -> tickSlamDescent(queen, state);
-            case SLAM_INTERVAL -> tickSlamInterval(queen, state);
-            case CHASE -> tickChase(queen, state);
-            case RAIN_WINDUP -> tickRainWindup(queen, state);
-            case RAIN_ACTIVE -> tickRainActive(queen, state);
-            case LINK_TELEPORT_DELAY -> tickLinkTeleportDelay(queen, state);
-            case LINK_BURST_WINDUP -> tickLinkBurstWindup(queen, state);
+        tickRainRound(queen, state);
+        tickLinkEstablishment(queen, state);
+        tickLinkDeathSidecar(queen, state);
+        tickFallingIce(queen, state);
+        if (queen.getCurrentPhase() != SnowQueen.Phase.SUMMON
+                && !state.rainRoundActive) {
+            state.rainRoundCompleted = false;
         }
         synchronizeParryWindow(queen);
+    }
+
+    private static void beginRainRound(SnowQueenCombatState state) {
+        state.rainRoundActive = true;
+        state.rainVolleySpawned = false;
+        state.rainQueenWindupRemaining =
+                BossRefactorTwilightForestConfig.SNOW_QUEEN
+                        .shatteredIceRainQueenWindupTicks.get();
+    }
+
+    private static void tickRainRound(
+            SnowQueen queen, SnowQueenCombatState state) {
+        if (!state.rainRoundActive) {
+            return;
+        }
+        if (state.rainQueenWindupRemaining > 0
+            && --state.rainQueenWindupRemaining > 0) {
+            return;
+        }
+        if (!state.rainVolleySpawned) {
+            LivingEntity target = ensureTarget(queen);
+            if (target != null) {
+                spawnRainVolley(queen, state, target);
+                state.rainVolleySpawned = true;
+            }
+        }
+        if (!state.rainVolleySpawned) {
+            return;
+        }
+        state.rainVolley.removeIf(uuid -> {
+            Entity summon = ((ServerLevel) queen.level()).getEntity(uuid);
+            return !(summon instanceof LivingEntity living) || !living.isAlive();
+        });
+        if (!state.rainVolley.isEmpty()) {
+            return;
+        }
+        state.rainRoundActive = false;
+        state.rainRoundCompleted = true;
+        state.rainVolleySpawned = false;
     }
 
     public static void tickBaseTraits(SnowQueen queen) {
@@ -161,6 +168,10 @@ public final class SnowQueenCombat {
                 config.iceShieldAngularSpeedDegreesPerTick.get());
         access.bossRefactorTF$setSnowQueenShieldVerticalOffset(
                 config.iceShieldVerticalOffset.get());
+        access.bossRefactorTF$setSnowQueenShieldWaveAmplitude(
+            config.iceShieldWaveAmplitude.get());
+        access.bossRefactorTF$setSnowQueenShieldWaveSpeed(
+            config.iceShieldWaveSpeedDegreesPerTick.get());
     }
 
     public static Vec3 iceShieldPosition(SnowQueen queen, int index) {
@@ -169,14 +180,19 @@ public final class SnowQueenCombat {
             return hiddenIceShieldPosition(queen);
         }
         SnowQueenCombatAccess access = access(queen);
+        int phaseTick = (int) queen.level().getGameTime();
         double angle = Math.toRadians(SnowQueenCombatRules.shieldAngleDegrees(
-                index, count, queen.tickCount,
+            index, count, phaseTick,
             access.bossRefactorTF$getSnowQueenShieldAngularSpeed()));
         double radius = access.bossRefactorTF$getSnowQueenShieldOrbitRadius();
         return new Vec3(
                 queen.getX() + Math.cos(angle) * radius,
                 queen.getY()
-                        + access.bossRefactorTF$getSnowQueenShieldVerticalOffset(),
+                + access.bossRefactorTF$getSnowQueenShieldVerticalOffset()
+                + SnowQueenCombatRules.shieldWaveOffset(
+                    index, count, phaseTick,
+                        access.bossRefactorTF$getSnowQueenShieldWaveAmplitude(),
+                        access.bossRefactorTF$getSnowQueenShieldWaveSpeed()),
                 queen.getZ() + Math.sin(angle) * radius);
     }
 
@@ -190,25 +206,42 @@ public final class SnowQueenCombat {
     public static boolean isCurrentAttackParryable(SnowQueen queen) {
         if (!customCombatActive(queen)
                 || !BossRefactorTwilightForestConfig.SNOW_QUEEN
-                        .slamSlashBladeParryEnabled.get()) {
+                        .iceShieldSlashBladeParryEnabled.get()) {
             return false;
         }
-        SnowQueenActionState actionState = state(queen).actionState;
-        return actionState == SnowQueenActionState.SLAM_WINDUP
-                || actionState == SnowQueenActionState.SLAM_DESCENT;
+        return hasShieldCollisionCandidate(queen);
     }
 
-    public static boolean acceptParry(SnowQueen queen) {
-        if (!isCurrentAttackParryable(queen)) {
+    public static boolean isCurrentAttackParryable(
+            SnowQueen queen, @Nullable LivingEntity actor) {
+        return actor != null
+                && customCombatActive(queen)
+                && BossRefactorTwilightForestConfig.SNOW_QUEEN
+                        .iceShieldSlashBladeParryEnabled.get()
+                && isShieldCollisionCandidate(queen, actor);
+    }
+
+    public static boolean acceptParry(
+            SnowQueen queen, @Nullable LivingEntity actor,
+            ResourceLocation sourceId) {
+        if (actor == null) {
             return false;
         }
         SnowQueenCombatState state = state(queen);
         long gameTime = queen.level().getGameTime();
-        if (state.lastParryGameTime == gameTime) {
+        if (state.lastParryGameTime == gameTime
+                && actor.getUUID().equals(state.lastParryActorUuid)) {
             return true;
         }
+        if (!isCurrentAttackParryable(queen, actor)) {
+            return false;
+        }
         state.lastParryGameTime = gameTime;
-        beginChase(queen, state);
+        state.lastParryActorUuid = actor.getUUID();
+        state.shieldCollisionCooldowns.put(
+            actor.getUUID(),
+            gameTime + BossRefactorTwilightForestConfig.SNOW_QUEEN
+                .iceShieldCollisionDamageCooldownTicks.get());
         return true;
     }
 
@@ -234,9 +267,6 @@ public final class SnowQueenCombat {
         pruneDeadSummonReferences(state, summonData);
         for (UUID summonUuid : state.linkedSummons) {
             Entity summon = level.getEntity(summonUuid);
-            if (summon == null) {
-                return true;
-            }
             if (summon instanceof LivingEntity living && living.isAlive()) {
                 return true;
             }
@@ -265,6 +295,10 @@ public final class SnowQueenCombat {
             return;
         }
         access.bossRefactorTF$setSnowQueenOwnerEntityId(owner.getId());
+        if (access.bossRefactorTF$isSnowQueenLinked()
+                && !state(owner).linkedSummons.contains(summon.getUUID())) {
+            access.bossRefactorTF$setSnowQueenLinked(false);
+        }
         if (summon instanceof StableIceCore stable) {
             stable.setTarget(owner.getTarget());
         }
@@ -302,11 +336,12 @@ public final class SnowQueenCombat {
         summonData.clearSummonDead(summon.getUUID());
         access.bossRefactorTF$setSnowQueenLinked(false);
         if (linked && owner.isAlive() && !state.suppressLinkDeathQueue) {
+            boolean queueWasEmpty = state.linkDeathPositions.isEmpty();
             state.linkDeathPositions.addLast(summon.position());
-            if (state.actionState != SnowQueenActionState.LINK_TELEPORT_DELAY
-                    && state.actionState
-                            != SnowQueenActionState.LINK_BURST_WINDUP) {
-                beginLinkTeleportDelay(owner, state);
+            if (queueWasEmpty) {
+                state.linkTeleportRemaining =
+                        BossRefactorTwilightForestConfig.SNOW_QUEEN
+                                .linkTeleportDelayTicks.get();
             }
         }
     }
@@ -343,295 +378,15 @@ public final class SnowQueenCombat {
         cleanupOwnedSummons(queen);
     }
 
-    private static void tickCruise(
-            SnowQueen queen, SnowQueenCombatState state) {
-        LivingEntity target = ensureTarget(queen);
-        if (target == null) {
-            enterIdle(queen);
-            return;
-        }
-        queen.getMoveControl().setWantedPosition(
-                target.getX(), target.getY(), target.getZ(), 1.0);
-        queen.getLookControl().setLookAt(target);
-        clearTelegraph(queen);
-        state.stateTicks++;
-        if (state.stateTicks < state.stateDuration) {
-            return;
-        }
-        SnowQueenSkill skill = SnowQueenCombatRules.chooseSkill(
-                state.lastSkill,
-                BossRefactorTwilightForestConfig.SNOW_QUEEN
-                        .avoidImmediateSkillRepeat.get(),
-                queen.getRandom().nextBoolean());
-        state.lastSkill = skill;
-        if (skill == SnowQueenSkill.REPEATED_SLAM) {
-            state.slamsCompleted = 0;
-            beginSlamWindup(queen, state, target);
-        } else {
-            beginRainWindup(queen, state, target);
-        }
-    }
-
-    private static void tickSlamWindup(
-            SnowQueen queen, SnowQueenCombatState state) {
-        LivingEntity target = ensureTarget(queen);
-        if (target == null) {
-            enterIdle(queen);
-            return;
-        }
-        BossRefactorTwilightForestConfig.SnowQueenConfig config =
-                BossRefactorTwilightForestConfig.SNOW_QUEEN;
-        queen.getMoveControl().setWantedPosition(
-                state.lockedX,
-                state.lockedY + config.slamPreparationHeight.get(),
-                state.lockedZ, 1.0);
-        queen.getLookControl().setLookAt(
-                state.lockedX, state.lockedY, state.lockedZ);
-        setCircleTelegraph(
-                queen, state,
-                AttackTelegraph.windupProgress(
-                        state.stateTicks, state.stateDuration),
-                config.slamRadius.get().floatValue());
-        state.stateTicks++;
-        if (state.stateTicks >= state.stateDuration) {
-            queen.getNavigation().stop();
-            queen.setPos(
-                state.lockedX,
-                state.lockedY + config.slamPreparationHeight.get(),
-                state.lockedZ);
-            enterState(state, SnowQueenActionState.SLAM_DESCENT,
-                    config.slamMaximumDescentTicks.get());
-        }
-    }
-
-    private static void tickSlamDescent(
-            SnowQueen queen, SnowQueenCombatState state) {
-        BossRefactorTwilightForestConfig.SnowQueenConfig config =
-                BossRefactorTwilightForestConfig.SNOW_QUEEN;
-        queen.getNavigation().stop();
-        queen.setDeltaMovement(0.0, -config.slamDescentSpeed.get(), 0.0);
-        setCircleTelegraph(
-                queen, state, 1.0F,
-                config.slamRadius.get().floatValue());
-        state.stateTicks++;
-        if (queen.getY() > state.lockedY
-                && state.stateTicks < state.stateDuration) {
-            return;
-        }
-        queen.setDeltaMovement(Vec3.ZERO);
-        boolean defended = damageCircle(
-                queen,
-                state.lockedX, state.lockedY, state.lockedZ,
-                config.slamRadius.get(),
-                skillDamage(queen, config.slamDamageMultiplier.get()),
-                config.slamHitsNonPlayers.get(), true);
-        state.slamsCompleted++;
-        if (defended || state.slamsCompleted >= config.slamCount.get()) {
-            beginChase(queen, state);
-            return;
-        }
-        enterState(state, SnowQueenActionState.SLAM_INTERVAL,
-                config.betweenSlamsTicks.get());
-        clearTelegraph(queen);
-    }
-
-    private static void tickSlamInterval(
-            SnowQueen queen, SnowQueenCombatState state) {
-        stopMovement(queen);
-        state.stateTicks++;
-        if (state.stateTicks < state.stateDuration) {
-            return;
-        }
-        LivingEntity target = ensureTarget(queen);
-        if (target == null) {
-            enterIdle(queen);
-        } else {
-            beginSlamWindup(queen, state, target);
-        }
-    }
-
-    private static void tickChase(
-            SnowQueen queen, SnowQueenCombatState state) {
-        LivingEntity target = ensureTarget(queen);
-        if (target == null) {
-            enterIdle(queen);
-            return;
-        }
-        BossRefactorTwilightForestConfig.SnowQueenConfig config =
-                BossRefactorTwilightForestConfig.SNOW_QUEEN;
-        queen.getMoveControl().setWantedPosition(
-                target.getX(),
-                target.getY() + config.chaseHeightOffset.get(),
-                target.getZ(),
-                config.chaseSpeedMultiplier.get());
-        queen.getLookControl().setLookAt(target);
-        if (state.stateTicks % config.chaseContactDamageIntervalTicks.get()
-                == 0) {
-            damageContacts(
-                    queen,
-                    queen.getBoundingBox().inflate(
-                            config.chaseHitboxInflation.get()),
-                    skillDamage(
-                            queen, config.chaseContactDamageMultiplier.get()),
-                    config.chaseHitsNonPlayers.get());
-        }
-        state.stateTicks++;
-        if (state.stateTicks >= state.stateDuration) {
-            beginCruise(queen);
-        }
-    }
-
-    private static void tickRainWindup(
-            SnowQueen queen, SnowQueenCombatState state) {
-        LivingEntity target = ensureTarget(queen);
-        if (target == null) {
-            enterIdle(queen);
-            return;
-        }
-        stopMovement(queen);
-        queen.getLookControl().setLookAt(target);
-        state.stateTicks++;
-        if (state.stateTicks >= state.stateDuration) {
-            spawnRainVolley(queen, state, target);
-            enterState(state, SnowQueenActionState.RAIN_ACTIVE, 0);
-        }
-    }
-
-    private static void tickRainActive(
-            SnowQueen queen, SnowQueenCombatState state) {
-        stopMovement(queen);
-        state.rainVolley.removeIf(uuid -> {
-            Entity summon = ((ServerLevel) queen.level()).getEntity(uuid);
-            return !(summon instanceof LivingEntity living) || !living.isAlive();
-        });
-        if (state.rainVolley.isEmpty()) {
-            beginCruiseOrIdle(queen);
-        }
-    }
-
-    private static void tickLinkTeleportDelay(
-            SnowQueen queen, SnowQueenCombatState state) {
-        stopMovement(queen);
-        clearTelegraph(queen);
-        if (state.linkDeathPositions.isEmpty()) {
-            beginCruiseOrIdle(queen);
-            return;
-        }
-        state.stateTicks++;
-        if (state.stateTicks < state.stateDuration) {
-            return;
-        }
-        Vec3 position = state.linkDeathPositions.peekFirst();
-        state.lockedX = position.x;
-        state.lockedY = position.y;
-        state.lockedZ = position.z;
-        queen.teleportTo(position.x, position.y, position.z);
-        enterState(state, SnowQueenActionState.LINK_BURST_WINDUP,
-                BossRefactorTwilightForestConfig.SNOW_QUEEN
-                        .linkBurstWindupTicks.get());
-    }
-
-    private static void tickLinkBurstWindup(
-            SnowQueen queen, SnowQueenCombatState state) {
-        BossRefactorTwilightForestConfig.SnowQueenConfig config =
-                BossRefactorTwilightForestConfig.SNOW_QUEEN;
-        stopMovement(queen);
-        setCircleTelegraph(
-                queen, state,
-                AttackTelegraph.windupProgress(
-                        state.stateTicks, state.stateDuration),
-                config.linkBurstRadius.get().floatValue());
-        state.stateTicks++;
-        if (state.stateTicks < state.stateDuration) {
-            return;
-        }
-        damageCircle(
-                queen,
-                state.lockedX, state.lockedY, state.lockedZ,
-                config.linkBurstRadius.get(),
-                skillDamage(queen, config.linkBurstDamageMultiplier.get()),
-                config.linkBurstHitsNonPlayers.get(), false);
-        state.linkDeathPositions.pollFirst();
-        if (state.linkDeathPositions.isEmpty()) {
-            beginCruiseOrIdle(queen);
-        } else {
-            beginLinkTeleportDelay(queen, state);
-        }
-    }
-
-    private static void beginCruise(SnowQueen queen) {
-        SnowQueenCombatState state = state(queen);
-        enterState(state, SnowQueenActionState.CRUISE,
-                SnowQueenCombatRules.cruiseTicks(
-                        BossRefactorTwilightForestConfig.SNOW_QUEEN
-                                .cruiseMinimumTicks.get(),
-                        BossRefactorTwilightForestConfig.SNOW_QUEEN
-                                .cruiseMaximumTicks.get(),
-                        queen.getRandom().nextDouble()));
-        state.slamsCompleted = 0;
-        clearTelegraph(queen);
-        closeParryWindow(queen);
-    }
-
-    private static void beginSlamWindup(
-            SnowQueen queen, SnowQueenCombatState state, LivingEntity target) {
-        state.lockedX = target.getX();
-        state.lockedY = target.getY();
-        state.lockedZ = target.getZ();
-        enterState(state, SnowQueenActionState.SLAM_WINDUP,
-                BossRefactorTwilightForestConfig.SNOW_QUEEN
-                        .slamWindupTicks.get());
-        setCircleTelegraph(
-                queen, state, 0.0F,
-                BossRefactorTwilightForestConfig.SNOW_QUEEN
-                        .slamRadius.get().floatValue());
-    }
-
-    private static void beginChase(
-            SnowQueen queen, SnowQueenCombatState state) {
-        enterState(state, SnowQueenActionState.CHASE,
-                BossRefactorTwilightForestConfig.SNOW_QUEEN
-                        .chaseDurationTicks.get());
-        state.slamsCompleted = 0;
-        clearTelegraph(queen);
-        closeParryWindow(queen);
-    }
-
-    private static void beginRainWindup(
-            SnowQueen queen, SnowQueenCombatState state, LivingEntity target) {
-        state.lockedX = target.getX();
-        state.lockedY = target.getY();
-        state.lockedZ = target.getZ();
-        enterState(state, SnowQueenActionState.RAIN_WINDUP,
-                BossRefactorTwilightForestConfig.SNOW_QUEEN
-                        .shatteredIceRainQueenWindupTicks.get());
-        clearTelegraph(queen);
-        closeParryWindow(queen);
-    }
-
-    private static void beginLinkTeleportDelay(
-            SnowQueen queen, SnowQueenCombatState state) {
-        enterState(state, SnowQueenActionState.LINK_TELEPORT_DELAY,
-                BossRefactorTwilightForestConfig.SNOW_QUEEN
-                        .linkTeleportDelayTicks.get());
-        clearTelegraph(queen);
-        closeParryWindow(queen);
-    }
-
-    private static void beginCruiseOrIdle(SnowQueen queen) {
-        if (ensureTarget(queen) == null) {
-            enterIdle(queen);
-        } else {
-            beginCruise(queen);
-        }
-    }
-
     private static void spawnRainVolley(
             SnowQueen queen, SnowQueenCombatState state, LivingEntity target) {
         BossRefactorTwilightForestConfig.SnowQueenConfig config =
                 BossRefactorTwilightForestConfig.SNOW_QUEEN;
         int count = state.secondPhase
-                ? config.shatteredIceRainSecondPhaseCount.get()
+            ? randomInclusive(
+                queen,
+                config.shatteredIceRainSecondPhaseMinimumCount.get(),
+                config.shatteredIceRainSecondPhaseMaximumCount.get())
                 : randomInclusive(
                         queen,
                         config.shatteredIceRainFirstPhaseMinimumCount.get(),
@@ -667,37 +422,7 @@ public final class SnowQueenCombat {
             queen.level().addFreshEntity(core);
             state.ownedSummons.add(core.getUUID());
             state.rainVolley.add(core.getUUID());
-            if (!state.secondPhase) {
-                linkIfSlotAvailable(queen, core);
-            }
-        }
-    }
-
-    private static void spawnPhaseTwoStableCores(
-            SnowQueen queen, SnowQueenCombatState state) {
-        BossRefactorTwilightForestConfig.SnowQueenConfig config =
-                BossRefactorTwilightForestConfig.SNOW_QUEEN;
-        int count = config.phaseTwoStableIceCoreCount.get();
-        for (int index = 0; index < count; index++) {
-            StableIceCore core = TFEntities.STABLE_ICE_CORE.get()
-                    .create(queen.level());
-            if (core == null) {
-                continue;
-            }
-            double angle = Math.PI * 2.0 * index / Math.max(1, count);
-            double radius = config.stableIceCoreSpawnRadius.get();
-            core.moveTo(
-                    queen.getX() + Math.cos(angle) * radius,
-                    queen.getY() + config.stableIceCoreSpawnVerticalOffset.get(),
-                    queen.getZ() + Math.sin(angle) * radius,
-                    queen.getYRot(), queen.getXRot());
-            configureOwnedSummon(
-                    queen, core,
-                    SnowQueenSummonAccess.ROLE_PHASE_TWO_STABLE);
-            core.setTarget(queen.getTarget());
-            queen.level().addFreshEntity(core);
-            state.ownedSummons.add(core.getUUID());
-            linkIfSlotAvailable(queen, core);
+            state.preferredLinkUuid = core.getUUID();
         }
     }
 
@@ -705,25 +430,13 @@ public final class SnowQueenCombat {
             SnowQueen queen, BaseIceMob summon, int role) {
         SnowQueenSummonAccess access = (SnowQueenSummonAccess) summon;
         summon.setNoAi(role == SnowQueenSummonAccess.ROLE_RAIN);
+        summon.setNoGravity(role == SnowQueenSummonAccess.ROLE_RAIN);
         access.bossRefactorTF$setSnowQueenOwnerUuid(queen.getUUID());
         access.bossRefactorTF$setSnowQueenOwnerEntityId(queen.getId());
         access.bossRefactorTF$setSnowQueenSummonRole(role);
         access.bossRefactorTF$setSnowQueenSummonState(
                 SnowQueenSummonAccess.STATE_IDLE);
         access.bossRefactorTF$setReportedSnowQueenDeath(false);
-    }
-
-    private static void linkIfSlotAvailable(
-            SnowQueen queen, BaseIceMob summon) {
-        SnowQueenCombatState state = state(queen);
-        if (state.linkedSummons.size()
-                >= BossRefactorTwilightForestConfig.SNOW_QUEEN
-                        .maximumLinks.get()) {
-            return;
-        }
-        state.linkedSummons.add(summon.getUUID());
-        ((SnowQueenSummonAccess) summon)
-                .bossRefactorTF$setSnowQueenLinked(true);
     }
 
     private static void tickRainSummon(
@@ -758,18 +471,23 @@ public final class SnowQueenCombat {
             SnowQueenSummonAccess access) {
         BossRefactorTwilightForestConfig.SnowQueenConfig config =
                 BossRefactorTwilightForestConfig.SNOW_QUEEN;
-        core.setDeltaMovement(
+        Vec3 delta = new Vec3(
                 access.bossRefactorTF$getSnowQueenDashX()
                         * config.shatteredIceRainDashSpeed.get(),
                 access.bossRefactorTF$getSnowQueenDashY()
                         * config.shatteredIceRainDashSpeed.get(),
                 access.bossRefactorTF$getSnowQueenDashZ()
                         * config.shatteredIceRainDashSpeed.get());
+        AABB beforeMove = core.getBoundingBox();
+        core.setDeltaMovement(delta);
+        core.move(MoverType.SELF, delta);
+        AABB sweptBounds = beforeMove.minmax(core.getBoundingBox()).inflate(
+            config.shatteredIceRainDashHitboxInflation.get());
+        boolean collided = core.horizontalCollision || core.verticalCollision;
+        core.setDeltaMovement(Vec3.ZERO);
         boolean hit = false;
-        AABB bounds = core.getBoundingBox().inflate(
-                config.shatteredIceRainDashHitboxInflation.get());
         for (LivingEntity target : core.level().getEntitiesOfClass(
-                LivingEntity.class, bounds,
+            LivingEntity.class, sweptBounds,
                 candidate -> isRainTarget(owner, candidate,
                         config.shatteredIceRainDashHitsNonPlayers.get()))) {
             if (target.hurt(owner.damageSources().mobAttack(core),
@@ -786,7 +504,8 @@ public final class SnowQueenCombat {
         }
         int ticks = access.bossRefactorTF$getSnowQueenSummonTicks() + 1;
         access.bossRefactorTF$setSnowQueenSummonTicks(ticks);
-        if (hit || ticks >= config.shatteredIceRainMaximumDashTicks.get()) {
+        if (collided || hit
+            || ticks >= config.shatteredIceRainMaximumDashTicks.get()) {
             access.bossRefactorTF$setSnowQueenSummonState(
                     SnowQueenSummonAccess.STATE_DYING);
             core.hurt(owner.damageSources().mobAttack(owner), Float.MAX_VALUE);
@@ -802,22 +521,14 @@ public final class SnowQueenCombat {
             return;
         }
         state.secondPhase = true;
+        BossRefactorTwilightForestConfig.SnowQueenConfig config =
+            BossRefactorTwilightForestConfig.SNOW_QUEEN;
+        state.fallingIceCooldown =
+            SnowQueenCombatRules.fallingIceCooldownBeforeWindup(
+                config.fallingIceIntervalTicks.get(),
+                config.fallingIceWindupTicks.get());
         access(queen).bossRefactorTF$setSnowQueenSecondPhase(true);
         synchronizePhaseModifiers(queen, true);
-        clearExistingLinks(queen, state);
-        spawnPhaseTwoStableCores(queen, state);
-    }
-
-    private static void clearExistingLinks(
-            SnowQueen queen, SnowQueenCombatState state) {
-        ServerLevel level = (ServerLevel) queen.level();
-        for (UUID summonUuid : state.linkedSummons) {
-            Entity summon = level.getEntity(summonUuid);
-            if (summon instanceof SnowQueenSummonAccess summonAccess) {
-                summonAccess.bossRefactorTF$setSnowQueenLinked(false);
-            }
-        }
-        state.linkedSummons.clear();
     }
 
     private static void positionIceShields(
@@ -831,7 +542,7 @@ public final class SnowQueenCombat {
                     ? iceShieldPosition(queen, index)
                     : hiddenIceShieldPosition(queen);
             shield.setPos(position.x, position.y, position.z);
-            if (!queen.level().isClientSide() && secondPhase && visible) {
+            if (!queen.level().isClientSide() && visible) {
                 damageShieldContacts(queen, shield);
             }
         }
@@ -869,12 +580,16 @@ public final class SnowQueenCombat {
             if (gameTime < expiresAt) {
                 continue;
             }
-            target.hurt(
+                if (gameTime == state.lastParryGameTime
+                    && target.getUUID().equals(state.lastParryActorUuid)) {
+                continue;
+                }
+                hurtWithIceShieldCheck(
+                    target,
                     queen.damageSources().mobAttack(queen),
                     skillDamage(
-                            queen,
-                            config.secondPhaseIceShieldCollisionDamageMultiplier
-                                    .get()));
+                        queen,
+                        config.iceShieldCollisionDamageMultiplier.get()));
             state.shieldCollisionCooldowns.put(
                     target.getUUID(),
                     gameTime + config.iceShieldCollisionDamageCooldownTicks
@@ -891,21 +606,21 @@ public final class SnowQueenCombat {
     private static void synchronizePhaseModifiers(
             SnowQueen queen, boolean active) {
         double damageAmount = BossRefactorTwilightForestConfig.SNOW_QUEEN
-                .phaseTwoDamageMultiplier.get() - 1.0;
+            .phaseTwoDamageMultiplier.get() - 1.0;
         double speedAmount = BossRefactorTwilightForestConfig.SNOW_QUEEN
                 .phaseTwoSpeedMultiplier.get() - 1.0;
         synchronizeModifier(
-                queen.getAttribute(Attributes.ATTACK_DAMAGE),
-                PHASE_ATTACK_MODIFIER_ID, PHASE_ATTACK_MODIFIER_NAME,
-                damageAmount, active);
+            queen.getAttribute(Attributes.ATTACK_DAMAGE),
+            PHASE_ATTACK_MODIFIER_ID, PHASE_ATTACK_MODIFIER_NAME,
+            damageAmount, active);
         synchronizeModifier(
-                queen.getAttribute(Attributes.MOVEMENT_SPEED),
-                PHASE_MOVEMENT_MODIFIER_ID, PHASE_MOVEMENT_MODIFIER_NAME,
-                speedAmount, active);
+            queen.getAttribute(Attributes.MOVEMENT_SPEED),
+            PHASE_MOVEMENT_MODIFIER_ID, PHASE_MOVEMENT_MODIFIER_NAME,
+            speedAmount, active);
         synchronizeModifier(
-                queen.getAttribute(Attributes.FLYING_SPEED),
-                PHASE_FLYING_MODIFIER_ID, PHASE_FLYING_MODIFIER_NAME,
-                speedAmount, active);
+            queen.getAttribute(Attributes.FLYING_SPEED),
+            PHASE_FLYING_MODIFIER_ID, PHASE_FLYING_MODIFIER_NAME,
+            speedAmount, active);
     }
 
     private static void synchronizeModifier(
@@ -931,15 +646,13 @@ public final class SnowQueenCombat {
                 id, name, amount, AttributeModifier.Operation.MULTIPLY_TOTAL));
     }
 
-    private static boolean damageCircle(
+        private static void damageCircle(
             SnowQueen queen, double x, double y, double z,
-            double radius, float damage, boolean hitsNonPlayers,
-            boolean checksShield) {
+            double radius, float damage, boolean hitsNonPlayers) {
         AABB bounds = new AABB(
                 x - radius, y - radius, z - radius,
                 x + radius, y + radius, z + radius);
         DamageSource source = queen.damageSources().mobAttack(queen);
-        boolean anyDefended = false;
         for (LivingEntity target : queen.level().getEntitiesOfClass(
                 LivingEntity.class, bounds,
                 candidate -> isSkillTarget(
@@ -948,51 +661,83 @@ public final class SnowQueenCombat {
                     target.getX(), target.getZ(), x, z, radius)) {
                 continue;
             }
-            if (checksShield
-                    && hurtWithShieldCheck(target, source, damage)) {
-                anyDefended = true;
-            }
-            if (!checksShield) {
-                target.hurt(source, damage);
-            }
-        }
-        return anyDefended;
-    }
-
-    private static void damageContacts(
-            SnowQueen queen, AABB bounds, float damage,
-            boolean hitsNonPlayers) {
-        DamageSource source = queen.damageSources().mobAttack(queen);
-        for (LivingEntity target : queen.level().getEntitiesOfClass(
-                LivingEntity.class, bounds,
-                candidate -> isSkillTarget(
-                        queen, candidate, hitsNonPlayers))) {
             target.hurt(source, damage);
         }
     }
 
-    private static boolean hurtWithShieldCheck(
+        private static void hurtWithIceShieldCheck(
             LivingEntity target, DamageSource source, float damage) {
         ItemStack usedShield = target instanceof ServerPlayer player
-                ? player.getUseItem().copy()
-                : ItemStack.EMPTY;
+            ? player.getUseItem().copy()
+            : ItemStack.EMPTY;
         boolean shieldBlocked = target instanceof ServerPlayer player
-                && usedShield.getItem() instanceof ShieldItem
-                && player.isDamageSourceBlocked(source);
+            && usedShield.getItem() instanceof ShieldItem
+            && player.isDamageSourceBlocked(source);
         target.hurt(source, damage);
-        if (shieldBlocked
-                && BossRefactorTwilightForestConfig.SNOW_QUEEN
-                        .slamShieldCooldownEnabled.get()) {
-            int cooldown = BossRefactorTwilightForestConfig.SNOW_QUEEN
-                    .slamShieldCooldownTicks.get();
-            if (!usedShield.isEmpty() && cooldown > 0) {
-                ((ServerPlayer) target).getCooldowns().addCooldown(
-                        usedShield.getItem(), cooldown);
-            }
-            ((ServerPlayer) target).stopUsingItem();
+        if (!shieldBlocked
+            || !BossRefactorTwilightForestConfig.SNOW_QUEEN
+                .iceShieldShieldCooldownEnabled.get()) {
+            return;
         }
-        return shieldBlocked;
-    }
+        int cooldown = BossRefactorTwilightForestConfig.SNOW_QUEEN
+            .iceShieldShieldCooldownTicks.get();
+        if (!usedShield.isEmpty() && cooldown > 0) {
+            ((ServerPlayer) target).getCooldowns().addCooldown(
+                usedShield.getItem(), cooldown);
+        }
+        ((ServerPlayer) target).stopUsingItem();
+        }
+
+        private static boolean hasShieldCollisionCandidate(SnowQueen queen) {
+        int count = activeShieldCount(queen);
+            SnowQueenCombatState state = state(queen);
+            long gameTime = queen.level().getGameTime();
+        for (int index = 0; index < count; index++) {
+            SnowQueenIceShield shield = queen.iceArray[index];
+            if (!queen.level().getEntitiesOfClass(
+                LivingEntity.class,
+                shield.getBoundingBox().inflate(
+                    BossRefactorTwilightForestConfig.SNOW_QUEEN
+                        .iceShieldCollisionHitboxInflation.get()),
+                candidate -> isSkillTarget(
+                    queen, candidate,
+                    BossRefactorTwilightForestConfig.SNOW_QUEEN
+                            .iceShieldCollisionHitsNonPlayers.get())
+                        && gameTime >= state.shieldCollisionCooldowns
+                            .getOrDefault(
+                                candidate.getUUID(),
+                                Long.MIN_VALUE))
+                .isEmpty()) {
+            return true;
+            }
+        }
+        return false;
+        }
+
+        private static boolean isShieldCollisionCandidate(
+            SnowQueen queen, LivingEntity actor) {
+        if (!isSkillTarget(
+            queen, actor,
+            BossRefactorTwilightForestConfig.SNOW_QUEEN
+                .iceShieldCollisionHitsNonPlayers.get())) {
+            return false;
+        }
+        if (queen.level().getGameTime()
+            < state(queen).shieldCollisionCooldowns.getOrDefault(
+                actor.getUUID(), Long.MIN_VALUE)) {
+            return false;
+        }
+        int count = activeShieldCount(queen);
+        double inflation = BossRefactorTwilightForestConfig.SNOW_QUEEN
+            .iceShieldCollisionHitboxInflation.get();
+        for (int index = 0; index < count; index++) {
+            if (queen.iceArray[index].getBoundingBox().inflate(inflation)
+                .intersects(actor.getBoundingBox())) {
+            return true;
+            }
+        }
+        return false;
+        }
 
     private static boolean isSkillTarget(
             SnowQueen queen, LivingEntity target, boolean hitsNonPlayers) {
@@ -1081,8 +826,14 @@ public final class SnowQueenCombat {
             SnowQueen queen, SnowQueenCombatState state) {
         ServerLevel level = (ServerLevel) queen.level();
         SnowQueenSummonData summonData = SnowQueenSummonData.get(level);
+        boolean deathQueueWasEmpty = state.linkDeathPositions.isEmpty();
         for (Vec3 position : summonData.drain(queen.getUUID())) {
             state.linkDeathPositions.addLast(position);
+        }
+        if (deathQueueWasEmpty && !state.linkDeathPositions.isEmpty()) {
+            state.linkTeleportRemaining =
+                    BossRefactorTwilightForestConfig.SNOW_QUEEN
+                            .linkTeleportDelayTicks.get();
         }
         pruneDeadSummonReferences(state, summonData);
         state.ownedSummons.removeIf(uuid -> {
@@ -1091,7 +842,7 @@ public final class SnowQueenCombat {
         });
         state.linkedSummons.removeIf(uuid -> {
             Entity entity = level.getEntity(uuid);
-            return entity != null && entity.isRemoved();
+            return entity == null || entity.isRemoved();
         });
     }
 
@@ -1105,6 +856,173 @@ public final class SnowQueenCombat {
             state.linkedSummons.remove(summonUuid);
             state.rainVolley.remove(summonUuid);
             summonData.clearSummonDead(summonUuid);
+        }
+    }
+
+    private static void tickLinkEstablishment(
+            SnowQueen queen, SnowQueenCombatState state) {
+        int maximumLinks = Math.min(
+            2,
+            BossRefactorTwilightForestConfig.SNOW_QUEEN
+                .maximumLinks.get());
+        if (state.linkedSummons.size() >= maximumLinks) {
+            state.linkEstablishTicks = 0;
+            return;
+        }
+        ArrayList<BaseIceMob> candidates = ownedLinkCandidates(queen, state);
+        if (candidates.isEmpty()) {
+            state.linkEstablishTicks = 0;
+            return;
+        }
+        int windup = BossRefactorTwilightForestConfig.SNOW_QUEEN
+                .linkEstablishWindupTicks.get();
+        state.linkEstablishTicks++;
+        if (state.linkEstablishTicks < windup) {
+            return;
+        }
+        candidates.sort(Comparator.comparingDouble(queen::distanceToSqr));
+        if (state.preferredLinkUuid != null) {
+            candidates.sort(Comparator.comparing(
+                    candidate -> !candidate.getUUID().equals(
+                            state.preferredLinkUuid)));
+        }
+        for (BaseIceMob candidate : candidates) {
+            if (state.linkedSummons.size() >= maximumLinks) {
+                break;
+            }
+            state.linkedSummons.add(candidate.getUUID());
+            ((SnowQueenSummonAccess) candidate)
+                    .bossRefactorTF$setSnowQueenLinked(true);
+        }
+        state.linkEstablishTicks = 0;
+    }
+
+    private static ArrayList<BaseIceMob> ownedLinkCandidates(
+            SnowQueen queen, SnowQueenCombatState state) {
+        ServerLevel level = (ServerLevel) queen.level();
+        ArrayList<BaseIceMob> candidates = new ArrayList<>();
+        for (UUID summonUuid : state.ownedSummons) {
+            Entity entity = level.getEntity(summonUuid);
+            if (!(entity instanceof StableIceCore)
+                    && !(entity instanceof UnstableIceCore)) {
+                continue;
+            }
+            if (entity instanceof BaseIceMob summon
+                    && summon.isAlive()
+                    && entity instanceof SnowQueenSummonAccess summonAccess
+                    && summonAccess.bossRefactorTF$isOwnedBy(queen.getUUID())
+                    && !summonAccess.bossRefactorTF$isSnowQueenLinked()) {
+                candidates.add(summon);
+            }
+        }
+        return candidates;
+    }
+
+    private static void tickLinkDeathSidecar(
+            SnowQueen queen, SnowQueenCombatState state) {
+        if (state.linkDeathPositions.isEmpty()) {
+            state.linkTeleportRemaining = 0;
+            return;
+        }
+        if (state.linkTeleportRemaining > 0
+            && --state.linkTeleportRemaining > 0) {
+            return;
+        }
+        Vec3 position = state.linkDeathPositions.pollFirst();
+        queen.teleportTo(position.x, position.y, position.z);
+        BossRefactorTwilightForestConfig.SnowQueenConfig config =
+                BossRefactorTwilightForestConfig.SNOW_QUEEN;
+        damageCircle(
+                queen, position.x, position.y, position.z,
+                config.linkBurstRadius.get(),
+                skillDamage(queen, config.linkBurstDamageMultiplier.get()),
+            config.linkBurstHitsNonPlayers.get());
+        state.linkTeleportRemaining = state.linkDeathPositions.isEmpty()
+                ? 0
+                : config.linkTeleportDelayTicks.get();
+    }
+
+    private static void tickFallingIce(
+            SnowQueen queen, SnowQueenCombatState state) {
+        if (!state.secondPhase) {
+            return;
+        }
+        BossRefactorTwilightForestConfig.SnowQueenConfig config =
+                BossRefactorTwilightForestConfig.SNOW_QUEEN;
+        if (!state.fallingIcePending) {
+                if (state.fallingIceCooldown > 0
+                    && --state.fallingIceCooldown > 0) {
+                return;
+            }
+            LivingEntity target = ensureTarget(queen);
+            if (!(target instanceof Player)) {
+                return;
+            }
+            state.fallingIceX = target.getX();
+            state.fallingIceY = target.getY();
+            state.fallingIceZ = target.getZ();
+            state.fallingIceTotal = config.fallingIceWindupTicks.get();
+            state.fallingIceRemaining = state.fallingIceTotal;
+            state.fallingIcePending = true;
+            state.fallingIceVisualSpawned = false;
+            state.lockedX = state.fallingIceX;
+            state.lockedY = state.fallingIceY;
+            state.lockedZ = state.fallingIceZ;
+        }
+        if (!state.fallingIceVisualSpawned) {
+            spawnFallingIceVisuals(queen, state);
+            state.fallingIceVisualSpawned = true;
+        }
+        setCircleTelegraph(
+            queen, state,
+            AttackTelegraph.windupProgress(
+                state.fallingIceTotal - state.fallingIceRemaining,
+                state.fallingIceTotal),
+            config.fallingIceRadius.get().floatValue());
+        if (state.fallingIceRemaining > 0
+            && --state.fallingIceRemaining > 0) {
+            return;
+        }
+        damageCircle(
+                queen,
+                state.fallingIceX, state.fallingIceY, state.fallingIceZ,
+                config.fallingIceRadius.get(),
+                skillDamage(queen, config.fallingIceDamageMultiplier.get()),
+            config.fallingIceHitsNonPlayers.get());
+        state.fallingIcePending = false;
+        state.fallingIceVisualSpawned = false;
+        state.fallingIceCooldown =
+            SnowQueenCombatRules.fallingIceCooldownBeforeWindup(
+                config.fallingIceIntervalTicks.get(),
+                config.fallingIceWindupTicks.get());
+        clearTelegraph(queen);
+    }
+
+    private static void spawnFallingIceVisuals(
+            SnowQueen queen, SnowQueenCombatState state) {
+        BossRefactorTwilightForestConfig.SnowQueenConfig config =
+                BossRefactorTwilightForestConfig.SNOW_QUEEN;
+        int count = config.fallingIceCount.get();
+        double radius = config.fallingIceRadius.get();
+        double height = config.fallingIceSpawnHeight.get();
+        for (int index = 0; index < count; index++) {
+            double angle = Math.PI * 2.0 * index / Math.max(1, count);
+            double distance = radius * Math.sqrt(
+                    queen.getRandom().nextDouble());
+            FallingIce fallingIce = new FallingIce(
+                    queen.level(),
+                    state.fallingIceX + Math.cos(angle) * distance,
+                    state.fallingIceY + height,
+                    state.fallingIceZ + Math.sin(angle) * distance,
+                    Blocks.PACKED_ICE.defaultBlockState(), 0);
+            ((AlphaYetiFallingIceAccess) fallingIce)
+                    .bossRefactorTF$markVisualOnly();
+            fallingIce.setDeltaMovement(
+                    0.0,
+                    AlphaYetiCombatRules.fallingIceInitialVelocity(
+                            height, Math.max(1, state.fallingIceTotal)),
+                    0.0);
+            queen.level().addFreshEntity(fallingIce);
         }
     }
 
@@ -1174,37 +1092,6 @@ public final class SnowQueenCombat {
                     "Unable to close the SenDimS parry window for Snow Queen {}",
                     queen.getUUID());
         }
-    }
-
-    private static void stopMovement(SnowQueen queen) {
-        queen.getNavigation().stop();
-        queen.setDeltaMovement(Vec3.ZERO);
-    }
-
-    private static void enterState(
-            SnowQueenCombatState state,
-            SnowQueenActionState actionState, int duration) {
-        state.actionState = actionState;
-        state.stateTicks = 0;
-        state.stateDuration = Math.max(0, duration);
-    }
-
-    private static void enterIdle(SnowQueen queen) {
-        enterState(state(queen), SnowQueenActionState.IDLE, 0);
-        stopMovement(queen);
-        clearTelegraph(queen);
-        closeParryWindow(queen);
-    }
-
-    private static void resetCombat(SnowQueen queen) {
-        SnowQueenCombatState state = state(queen);
-        enterState(state, SnowQueenActionState.IDLE, 0);
-        state.slamsCompleted = 0;
-        state.rainVolley.clear();
-        state.linkDeathPositions.clear();
-        synchronizePhaseModifiers(queen, false);
-        clearTelegraph(queen);
-        closeParryWindow(queen);
     }
 
     private static SnowQueenCombatState state(SnowQueen queen) {

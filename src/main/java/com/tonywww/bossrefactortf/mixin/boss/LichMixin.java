@@ -94,6 +94,9 @@ public abstract class LichMixin extends Monster
         if (LichCombat.isCustomClone(lich)
                 && !LichCombat.requiresExclusiveControl(lich)) {
             LichCombat.tick(lich);
+                } else if (!LichCombat.isSecondPhase(lich)
+                                && !LichCombat.requiresExclusiveControl(lich)) {
+                        LichCombat.tickFirstPhaseBackground(lich);
         }
     }
 

@@ -35,10 +35,25 @@ public final class MinoshroomCombatRulesSelfTest {
                 "targets on the stomp boundary must select stomp");
         check(!MinoshroomCombatRules.shouldUseStomp(5.01, 5.0),
                 "targets outside stomp range must select sweep");
+        check(MinoshroomCombatRules.shouldSelectStomp(
+                        5.0, 5.0, 0.25, 0.249),
+                "a roll below the stomp probability must select stomp");
+        check(!MinoshroomCombatRules.shouldSelectStomp(
+                        5.0, 5.0, 0.25, 0.25),
+                "a roll on the stomp probability boundary must select sweep");
+        check(!MinoshroomCombatRules.shouldSelectStomp(
+                        5.01, 5.0, 1.0, 0.0),
+                "targets outside stomp range must select sweep regardless of probability");
         check(MinoshroomCombatRules.shouldDamageWithStomp(true, 5.0, 5.0),
                 "grounded targets on the stomp boundary must take damage");
         check(!MinoshroomCombatRules.shouldDamageWithStomp(false, 0.0, 5.0),
                 "jumping targets must avoid stomp damage");
+        check(MinoshroomCombatRules.blockDestructionMinimumY(64.0) == 64,
+                "an integer feet height must preserve the floor below it");
+        check(MinoshroomCombatRules.blockDestructionMinimumY(63.999999) == 64,
+                "floating-point drift must not expose the floor to destruction");
+        check(MinoshroomCombatRules.blockDestructionMinimumY(64.5) == 65,
+                "a partial-block floor must preserve the block containing the feet plane");
         check(MinoshroomCombatRules.stompDamageTypePath()
                         .equals("minoshroom_stomp"),
                 "stomp damage must use its dedicated data-driven damage type");
@@ -112,6 +127,8 @@ public final class MinoshroomCombatRulesSelfTest {
                 "the initial round may be followed by four repeats");
         check(config.stompWindupTicks.getDefault() == 30,
                 "the stomp windup must be thirty ticks");
+        checkClose(config.stompSelectionProbability.getDefault(), 0.25,
+                "stomp selection must default to twenty-five percent");
         check(config.secondPhaseStompCount.getDefault() == 2,
                 "phase two must stomp twice");
         checkClose(config.secondPhaseWindupMultiplier.getDefault(), 0.5,

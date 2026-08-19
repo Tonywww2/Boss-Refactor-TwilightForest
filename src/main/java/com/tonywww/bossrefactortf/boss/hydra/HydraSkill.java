@@ -5,14 +5,16 @@ public enum HydraSkill {
     BITE,
     SWEEP,
     SLAM,
-    FIRE_LORD;
+    FIRE_LORD,
+    FLAME_BREATH,
+    EVIL_FIREBALL;
 
     public static HydraSkill byId(int id) {
         HydraSkill[] values = values();
         return id >= 0 && id < values.length ? values[id] : NONE;
     }
 
-    public boolean isOrdinaryMelee() {
-        return this == BITE || this == SWEEP || this == SLAM;
+    public boolean isCustomMelee() {
+        return this == SWEEP || this == SLAM;
     }
 }

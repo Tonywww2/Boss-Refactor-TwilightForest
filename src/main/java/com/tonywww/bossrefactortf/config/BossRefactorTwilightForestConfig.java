@@ -1,5 +1,6 @@
 package com.tonywww.bossrefactortf.config;
 
+import com.tonywww.bossrefactortf.boss.naga.NagaCombatDefaults;
 import net.minecraftforge.common.ForgeConfigSpec;
 
 public final class BossRefactorTwilightForestConfig {
@@ -103,6 +104,7 @@ public final class BossRefactorTwilightForestConfig {
         public final ForgeConfigSpec.IntValue secondPhaseMinimumSweepRounds;
         public final ForgeConfigSpec.IntValue stompWindupTicks;
         public final ForgeConfigSpec.DoubleValue stompRadius;
+        public final ForgeConfigSpec.DoubleValue stompSelectionProbability;
         public final ForgeConfigSpec.DoubleValue stompDamageMultiplier;
         public final ForgeConfigSpec.DoubleValue stompHorizontalKnockback;
         public final ForgeConfigSpec.DoubleValue stompMinimumVerticalVelocity;
@@ -186,6 +188,9 @@ public final class BossRefactorTwilightForestConfig {
             stompWindupTicks = builder.defineInRange(
                     "windup_ticks", 30, 1, 1200);
             stompRadius = builder.defineInRange("radius", 5.0, 0.1, 64.0);
+            stompSelectionProbability = builder.comment(
+                            "Chance to select stomp when the target is within range.")
+                    .defineInRange("selection_probability", 0.25, 0.0, 1.0);
             stompDamageMultiplier = builder.defineInRange(
                     "damage_multiplier", 1.0, 0.0, 100.0);
             stompHorizontalKnockback = builder.defineInRange(
@@ -479,9 +484,24 @@ public final class BossRefactorTwilightForestConfig {
     public static final class HydraConfig {
         public final ForgeConfigSpec.BooleanValue enabled;
         public final ForgeConfigSpec.DoubleValue baseAttackDamage;
+        public final ForgeConfigSpec.DoubleValue secondPhaseDamageMultiplier;
         public final ForgeConfigSpec.IntValue ordinaryAttackIntervalTicks;
         public final ForgeConfigSpec.IntValue recoveryTicks;
-        public final ForgeConfigSpec.IntValue followUpDelayTicks;
+        public final ForgeConfigSpec.IntValue evilFireballWindupTicks;
+        public final ForgeConfigSpec.IntValue evilFireballCooldownTicks;
+        public final ForgeConfigSpec.DoubleValue evilFireballSpeed;
+        public final ForgeConfigSpec.DoubleValue evilFireballVisualScale;
+        public final ForgeConfigSpec.IntValue evilFireballLifetimeTicks;
+        public final ForgeConfigSpec.IntValue evilFireballAuraIntervalTicks;
+        public final ForgeConfigSpec.DoubleValue evilFireballAuraRadius;
+        public final ForgeConfigSpec.DoubleValue evilFireballAuraDamageMultiplier;
+        public final ForgeConfigSpec.DoubleValue evilFireballExplosionRadius;
+        public final ForgeConfigSpec.DoubleValue evilFireballExplosionDamageMultiplier;
+        public final ForgeConfigSpec.IntValue evilFireballIgniteTicks;
+        public final ForgeConfigSpec.IntValue evilFireballPhaseTwoBeamCount;
+        public final ForgeConfigSpec.DoubleValue evilFireballPhaseTwoBeamScatter;
+        public final ForgeConfigSpec.DoubleValue evilFireballPhaseTwoBeamRadius;
+        public final ForgeConfigSpec.IntValue evilFireballPhaseTwoBeamWindupTicks;
         public final ForgeConfigSpec.IntValue shieldCooldownTicks;
         public final ForgeConfigSpec.IntValue parryFeedbackTicks;
         public final ForgeConfigSpec.DoubleValue meleeVerticalRange;
@@ -504,6 +524,7 @@ public final class BossRefactorTwilightForestConfig {
         public final ForgeConfigSpec.DoubleValue fireLordGroundDistance;
         public final ForgeConfigSpec.IntValue fireLordDamageIntervalTicks;
         public final ForgeConfigSpec.DoubleValue fireLordDamageMultiplier;
+        public final ForgeConfigSpec.DoubleValue fireLordDamagePerHead;
         public final ForgeConfigSpec.IntValue fireIgniteTicks;
         public final ForgeConfigSpec.IntValue fireLordBeamIntervalTicks;
         public final ForgeConfigSpec.IntValue fireLordBeamCount;
@@ -530,14 +551,48 @@ public final class BossRefactorTwilightForestConfig {
             baseAttackDamage = builder.comment(
                             "Base attack damage used by all custom Hydra attacks.")
                     .defineInRange("base_attack_damage", 16.0, 0.0, 1000.0);
+            secondPhaseDamageMultiplier = builder.comment(
+                            "Damage multiplier for all custom attacks below half health.")
+                    .defineInRange("second_phase_damage_multiplier", 1.2, 0.0, 100.0);
             ordinaryAttackIntervalTicks = builder.comment(
                             "Delay before the next primary ordinary attack.")
                     .defineInRange("ordinary_attack_interval_ticks", 40, 0, 12000);
             recoveryTicks = builder.comment("Recovery after an attack chain.")
                     .defineInRange("recovery_ticks", 20, 0, 12000);
-            followUpDelayTicks = builder.comment(
-                            "Phase-two delay before another active head follows up.")
-                    .defineInRange("follow_up_delay_ticks", 20, 0, 12000);
+
+            builder.comment("Evil fireball.").push("evil_fireball");
+            evilFireballWindupTicks = builder.defineInRange(
+                    "windup_ticks", 40, 1, 1200);
+            evilFireballCooldownTicks = builder.defineInRange(
+                    "cooldown_ticks", 200, 1, 12000);
+            evilFireballSpeed = builder.defineInRange(
+                    "speed", 0.25, 0.01, 8.0);
+            evilFireballVisualScale = builder.defineInRange(
+                    "visual_scale", 4.0, 0.1, 32.0);
+            evilFireballLifetimeTicks = builder.defineInRange(
+                    "lifetime_ticks", 200, 1, 12000);
+            evilFireballAuraIntervalTicks = builder.defineInRange(
+                    "aura_interval_ticks", 20, 20, 1200);
+            evilFireballAuraRadius = builder.defineInRange(
+                    "aura_radius", 3.0, 0.1, 64.0);
+            evilFireballAuraDamageMultiplier = builder.defineInRange(
+                    "aura_damage_multiplier", 0.6, 0.0, 100.0);
+            evilFireballExplosionRadius = builder.defineInRange(
+                    "explosion_radius", 5.0, 0.1, 128.0);
+            evilFireballExplosionDamageMultiplier = builder.defineInRange(
+                    "explosion_damage_multiplier", 1.5, 0.0, 100.0);
+            evilFireballIgniteTicks = builder.defineInRange(
+                    "ignite_ticks", 100, 0, 12000);
+            evilFireballPhaseTwoBeamCount = builder.defineInRange(
+                    "phase_two_beam_count", 3, 0, 128);
+            evilFireballPhaseTwoBeamScatter = builder.defineInRange(
+                    "phase_two_beam_scatter", 6.0, 0.0, 128.0);
+            evilFireballPhaseTwoBeamRadius = builder.defineInRange(
+                    "phase_two_beam_radius", 2.0, 0.1, 64.0);
+            evilFireballPhaseTwoBeamWindupTicks = builder.defineInRange(
+                    "phase_two_beam_windup_ticks", 20, 1, 1200);
+            builder.pop();
+
             shieldCooldownTicks = builder.comment(
                             "Shield cooldown after blocking an ordinary melee attack.")
                     .defineInRange("shield_cooldown_ticks", 100, 0, 12000);
@@ -592,6 +647,9 @@ public final class BossRefactorTwilightForestConfig {
                     "damage_interval_ticks", 20, 1, 1200);
             fireLordDamageMultiplier = builder.defineInRange(
                     "damage_multiplier", 0.5, 0.0, 100.0);
+            fireLordDamagePerHead = builder.comment(
+                            "Additional damage multiplier for each active head.")
+                    .defineInRange("damage_per_active_head", 0.2, 0.0, 100.0);
             fireIgniteTicks = builder.defineInRange(
                     "ignite_ticks", 100, 0, 12000);
             fireLordParticlesPerHead = builder.comment(
@@ -746,6 +804,7 @@ public final class BossRefactorTwilightForestConfig {
         public final ForgeConfigSpec.IntValue stunDurationTicks;
         public final ForgeConfigSpec.IntValue parryFeedbackTicks;
         public final ForgeConfigSpec.IntValue windupParticlesPerTick;
+        public final ForgeConfigSpec.IntValue chargeCooldownTicks;
         public final ForgeConfigSpec.IntValue pounceWindupTicks;
         public final ForgeConfigSpec.IntValue pounceFlightTicks;
         public final ForgeConfigSpec.DoubleValue pounceImpactRadius;
@@ -754,17 +813,9 @@ public final class BossRefactorTwilightForestConfig {
         public final ForgeConfigSpec.DoubleValue pounceHorizontalSpeed;
         public final ForgeConfigSpec.DoubleValue pounceVerticalSpeed;
         public final ForgeConfigSpec.IntValue pounceCooldownTicks;
-        public final ForgeConfigSpec.IntValue tailWindupTicks;
-        public final ForgeConfigSpec.IntValue tailDurationTicks;
-        public final ForgeConfigSpec.DoubleValue tailRadius;
-        public final ForgeConfigSpec.DoubleValue tailVerticalRange;
-        public final ForgeConfigSpec.DoubleValue tailHalfAngleDegrees;
-        public final ForgeConfigSpec.DoubleValue tailDamageMultiplier;
-        public final ForgeConfigSpec.IntValue tailCooldownTicks;
         public final ForgeConfigSpec.DoubleValue bodySegmentSpacing;
         public final ForgeConfigSpec.DoubleValue bodyTrailSampleSpacing;
         public final ForgeConfigSpec.DoubleValue bodyTrailTeleportResetDistance;
-        public final ForgeConfigSpec.DoubleValue bodyTailCurveDegrees;
         public final ForgeConfigSpec.IntValue bodyPoseBlendTicks;
         public final ForgeConfigSpec.IntValue venomWindupTicks;
         public final ForgeConfigSpec.DoubleValue venomLength;
@@ -810,6 +861,7 @@ public final class BossRefactorTwilightForestConfig {
         public final ForgeConfigSpec.DoubleValue secondPhaseSpeedMultiplier;
         public final ForgeConfigSpec.IntValue stunImmunityRecoveryTicks;
         public final ForgeConfigSpec.IntValue fireSnakeDurationTicks;
+        public final ForgeConfigSpec.IntValue fireSnakeCooldownTicks;
         public final ForgeConfigSpec.IntValue firePointDurationTicks;
         public final ForgeConfigSpec.DoubleValue firePointSpacing;
         public final ForgeConfigSpec.DoubleValue fireDamageRadius;
@@ -836,7 +888,7 @@ public final class BossRefactorTwilightForestConfig {
                     .defineInRange("cruise_maximum_ticks", 40, 1, 1200);
             cruiseSpeed = builder.comment("Navigation speed during ordinary cruise.")
                     .defineInRange("cruise_speed", 1.0, 0.0, 20.0);
-            shieldCooldownTicks = builder.comment("Shield cooldown after blocking pounce or tail sweep.")
+            shieldCooldownTicks = builder.comment("Shield cooldown after blocking pounce or charge.")
                     .defineInRange("shield_cooldown_ticks", 100, 0, 12000);
             stunDurationTicks = builder.comment("Stun duration after a successful defensive reaction.")
                     .defineInRange("stun_duration_ticks", 60, 1, 12000);
@@ -844,6 +896,12 @@ public final class BossRefactorTwilightForestConfig {
                     .defineInRange("parry_feedback_ticks", 10, 1, 1200);
             windupParticlesPerTick = builder.comment("Warning particles emitted per windup tick.")
                     .defineInRange("windup_particles_per_tick", 4, 0, 128);
+
+            builder.comment("Vanilla charge.").push("charge");
+            chargeCooldownTicks = builder.defineInRange(
+                    "cooldown_ticks",
+                    NagaCombatDefaults.CHARGE_COOLDOWN_TICKS, 1, 12000);
+            builder.pop();
 
             builder.comment("Pounce.").push("pounce");
             pounceWindupTicks = builder.defineInRange("windup_ticks", 30, 1, 1200);
@@ -857,24 +915,10 @@ public final class BossRefactorTwilightForestConfig {
             pounceCooldownTicks = builder.defineInRange("cooldown_ticks", 120, 1, 12000);
             builder.pop();
 
-            builder.comment("Tail sweep.").push("tail_sweep");
-            tailWindupTicks = builder.defineInRange("windup_ticks", 20, 1, 1200);
-            tailDurationTicks = builder.comment("Visible sweep duration in ticks.")
-                    .defineInRange("duration_ticks", 8, 1, 1200);
-            tailRadius = builder.defineInRange("radius", 6.0, 0.1, 64.0);
-            tailVerticalRange = builder.comment("Vertical range of the tail sweep.")
-                    .defineInRange("vertical_range", 3.0, 0.0, 64.0);
-            tailHalfAngleDegrees = builder.defineInRange("half_angle_degrees", 90.0, 1.0, 180.0);
-            tailDamageMultiplier = builder.defineInRange("damage_multiplier", 1.5, 0.0, 100.0);
-            tailCooldownTicks = builder.defineInRange("cooldown_ticks", 100, 1, 12000);
-            builder.pop();
-
-            builder.comment("Body trail and combat poses.").push("body_control");
+            builder.comment("Body trail and frozen pose.").push("body_control");
             bodySegmentSpacing = builder.defineInRange("segment_spacing", 2.0, 0.1, 16.0);
             bodyTrailSampleSpacing = builder.defineInRange("trail_sample_spacing", 0.25, 0.01, 4.0);
             bodyTrailTeleportResetDistance = builder.defineInRange("teleport_reset_distance", 32.0, 1.0, 1024.0);
-            bodyTailCurveDegrees = builder.comment("Absolute body curve at either side of a tail sweep.")
-                    .defineInRange("tail_curve_degrees", 270.0, 180.0, 360.0);
             bodyPoseBlendTicks = builder.comment("Ticks used to blend combat poses back into the head trail.")
                     .defineInRange("pose_blend_ticks", 6, 0, 1200);
             builder.pop();
@@ -948,11 +992,24 @@ public final class BossRefactorTwilightForestConfig {
             builder.comment("Second phase and fire snake.").push("second_phase");
             secondPhaseHealthFraction = builder.comment("Phase two starts strictly below this health fraction.")
                     .defineInRange("health_fraction", 0.5, 0.0, 1.0);
-            secondPhaseAttackMultiplier = builder.defineInRange("attack_multiplier", 1.2, 0.0, 20.0);
-            secondPhaseSpeedMultiplier = builder.defineInRange("speed_multiplier", 1.2, 0.0, 20.0);
+            secondPhaseAttackMultiplier = builder.defineInRange(
+                    "attack_multiplier",
+                    NagaCombatDefaults.SECOND_PHASE_ATTACK_MULTIPLIER,
+                    0.0, 20.0);
+            secondPhaseSpeedMultiplier = builder.defineInRange(
+                    "speed_multiplier",
+                    NagaCombatDefaults.SECOND_PHASE_SPEED_MULTIPLIER,
+                    0.0, 20.0);
             stunImmunityRecoveryTicks = builder.defineInRange("stun_immunity_recovery_ticks", 300, 1, 12000);
-            fireSnakeDurationTicks = builder.defineInRange("fire_snake_duration_ticks", 300, 1, 12000);
-            firePointDurationTicks = builder.defineInRange("fire_point_duration_ticks", 300, 1, 12000);
+            fireSnakeDurationTicks = builder.defineInRange(
+                    "fire_snake_duration_ticks",
+                    NagaCombatDefaults.FIRE_SNAKE_DURATION_TICKS, 1, 12000);
+            fireSnakeCooldownTicks = builder.defineInRange(
+                    "fire_snake_cooldown_ticks",
+                    NagaCombatDefaults.FIRE_SNAKE_COOLDOWN_TICKS, 0, 12000);
+            firePointDurationTicks = builder.defineInRange(
+                    "fire_point_duration_ticks",
+                    NagaCombatDefaults.FIRE_POINT_DURATION_TICKS, 1, 12000);
             firePointSpacing = builder.defineInRange("fire_point_spacing", 1.5, 0.1, 32.0);
             fireDamageRadius = builder.defineInRange("fire_damage_radius", 1.5, 0.1, 32.0);
             firePointVerticalRange = builder.comment("Vertical range of fire point damage.")
@@ -968,9 +1025,15 @@ public final class BossRefactorTwilightForestConfig {
                     .defineInRange("fire_snake_green_multiplier", 0.25, 0.0, 4.0);
             fireSnakeBlueMultiplier = builder.comment("Blue model-color multiplier while the fire snake is active.")
                     .defineInRange("fire_snake_blue_multiplier", 0.2, 0.0, 4.0);
-            fireDamageIntervalTicks = builder.defineInRange("fire_damage_interval_ticks", 20, 1, 1200);
-            fireDamageMultiplier = builder.defineInRange("fire_damage_multiplier", 0.5, 0.0, 100.0);
-            fireIgniteTicks = builder.defineInRange("fire_ignite_ticks", 100, 0, 12000);
+            fireDamageIntervalTicks = builder.defineInRange(
+                    "fire_damage_interval_ticks",
+                    NagaCombatDefaults.FIRE_DAMAGE_INTERVAL_TICKS, 1, 1200);
+            fireDamageMultiplier = builder.defineInRange(
+                    "fire_damage_multiplier",
+                    NagaCombatDefaults.FIRE_DAMAGE_MULTIPLIER, 0.0, 100.0);
+            fireIgniteTicks = builder.defineInRange(
+                    "fire_ignite_ticks",
+                    NagaCombatDefaults.FIRE_IGNITE_TICKS, 0, 12000);
             fireParticlesPerPoint = builder.defineInRange("fire_particles_per_point", 3, 0, 128);
             builder.pop();
             builder.pop();
@@ -1114,42 +1177,28 @@ public final class BossRefactorTwilightForestConfig {
 
     public static final class SnowQueenConfig {
         public final ForgeConfigSpec.BooleanValue enabled;
-        public final ForgeConfigSpec.IntValue cruiseMinimumTicks;
-        public final ForgeConfigSpec.IntValue cruiseMaximumTicks;
-        public final ForgeConfigSpec.BooleanValue avoidImmediateSkillRepeat;
         public final ForgeConfigSpec.IntValue firstPhaseIceShieldCount;
         public final ForgeConfigSpec.IntValue secondPhaseIceShieldCount;
         public final ForgeConfigSpec.DoubleValue iceShieldOrbitRadius;
         public final ForgeConfigSpec.DoubleValue iceShieldAngularSpeedDegreesPerTick;
+        public final ForgeConfigSpec.DoubleValue iceShieldWaveAmplitude;
+        public final ForgeConfigSpec.DoubleValue iceShieldWaveSpeedDegreesPerTick;
         public final ForgeConfigSpec.DoubleValue iceShieldVerticalOffset;
-        public final ForgeConfigSpec.DoubleValue secondPhaseIceShieldCollisionDamageMultiplier;
+        public final ForgeConfigSpec.DoubleValue iceShieldCollisionDamageMultiplier;
         public final ForgeConfigSpec.DoubleValue iceShieldCollisionHitboxInflation;
         public final ForgeConfigSpec.IntValue iceShieldCollisionDamageCooldownTicks;
         public final ForgeConfigSpec.BooleanValue iceShieldCollisionHitsNonPlayers;
-        public final ForgeConfigSpec.IntValue slamCount;
-        public final ForgeConfigSpec.IntValue slamWindupTicks;
-        public final ForgeConfigSpec.DoubleValue slamPreparationHeight;
-        public final ForgeConfigSpec.DoubleValue slamDescentSpeed;
-        public final ForgeConfigSpec.IntValue slamMaximumDescentTicks;
-        public final ForgeConfigSpec.DoubleValue slamRadius;
-        public final ForgeConfigSpec.DoubleValue slamDamageMultiplier;
-        public final ForgeConfigSpec.BooleanValue slamHitsNonPlayers;
-        public final ForgeConfigSpec.IntValue betweenSlamsTicks;
-        public final ForgeConfigSpec.BooleanValue slamShieldCooldownEnabled;
-        public final ForgeConfigSpec.IntValue slamShieldCooldownTicks;
-        public final ForgeConfigSpec.BooleanValue slamSlashBladeParryEnabled;
-        public final ForgeConfigSpec.IntValue slamParryFeedbackTicks;
-        public final ForgeConfigSpec.IntValue chaseDurationTicks;
+        public final ForgeConfigSpec.BooleanValue iceShieldShieldCooldownEnabled;
+        public final ForgeConfigSpec.IntValue iceShieldShieldCooldownTicks;
+        public final ForgeConfigSpec.BooleanValue iceShieldSlashBladeParryEnabled;
+        public final ForgeConfigSpec.IntValue iceShieldParryFeedbackTicks;
         public final ForgeConfigSpec.DoubleValue chaseHeightOffset;
         public final ForgeConfigSpec.DoubleValue chaseSpeedMultiplier;
-        public final ForgeConfigSpec.DoubleValue chaseContactDamageMultiplier;
-        public final ForgeConfigSpec.BooleanValue chaseHitsNonPlayers;
-        public final ForgeConfigSpec.IntValue chaseContactDamageIntervalTicks;
-        public final ForgeConfigSpec.DoubleValue chaseHitboxInflation;
         public final ForgeConfigSpec.IntValue shatteredIceRainQueenWindupTicks;
         public final ForgeConfigSpec.IntValue shatteredIceRainFirstPhaseMinimumCount;
         public final ForgeConfigSpec.IntValue shatteredIceRainFirstPhaseMaximumCount;
-        public final ForgeConfigSpec.IntValue shatteredIceRainSecondPhaseCount;
+        public final ForgeConfigSpec.IntValue shatteredIceRainSecondPhaseMinimumCount;
+        public final ForgeConfigSpec.IntValue shatteredIceRainSecondPhaseMaximumCount;
         public final ForgeConfigSpec.DoubleValue shatteredIceRainSpawnDistanceBehind;
         public final ForgeConfigSpec.DoubleValue shatteredIceRainSpawnSpacing;
         public final ForgeConfigSpec.DoubleValue shatteredIceRainSpawnVerticalOffset;
@@ -1164,21 +1213,24 @@ public final class BossRefactorTwilightForestConfig {
         public final ForgeConfigSpec.IntValue shatteredIceRainFrostedAmplifier;
         public final ForgeConfigSpec.IntValue shatteredIceRainExplosionDelayTicks;
         public final ForgeConfigSpec.DoubleValue shatteredIceRainExplosionRadius;
-        public final ForgeConfigSpec.BooleanValue shatteredIceRainPreserveOriginalBlockInteraction;
         public final ForgeConfigSpec.IntValue maximumLinks;
         public final ForgeConfigSpec.DoubleValue linkSummonDamageBonus;
         public final ForgeConfigSpec.DoubleValue linkQueenDamageReduction;
+        public final ForgeConfigSpec.IntValue linkEstablishWindupTicks;
         public final ForgeConfigSpec.IntValue linkTeleportDelayTicks;
-        public final ForgeConfigSpec.IntValue linkBurstWindupTicks;
         public final ForgeConfigSpec.DoubleValue linkBurstRadius;
         public final ForgeConfigSpec.DoubleValue linkBurstDamageMultiplier;
         public final ForgeConfigSpec.BooleanValue linkBurstHitsNonPlayers;
-        public final ForgeConfigSpec.IntValue phaseTwoStableIceCoreCount;
-        public final ForgeConfigSpec.DoubleValue stableIceCoreSpawnRadius;
-        public final ForgeConfigSpec.DoubleValue stableIceCoreSpawnVerticalOffset;
         public final ForgeConfigSpec.DoubleValue phaseTwoHealthThreshold;
         public final ForgeConfigSpec.DoubleValue phaseTwoDamageMultiplier;
         public final ForgeConfigSpec.DoubleValue phaseTwoSpeedMultiplier;
+        public final ForgeConfigSpec.IntValue fallingIceIntervalTicks;
+        public final ForgeConfigSpec.IntValue fallingIceWindupTicks;
+        public final ForgeConfigSpec.DoubleValue fallingIceRadius;
+        public final ForgeConfigSpec.IntValue fallingIceCount;
+        public final ForgeConfigSpec.DoubleValue fallingIceSpawnHeight;
+        public final ForgeConfigSpec.DoubleValue fallingIceDamageMultiplier;
+        public final ForgeConfigSpec.BooleanValue fallingIceHitsNonPlayers;
         public final ForgeConfigSpec.IntValue linkRed;
         public final ForgeConfigSpec.IntValue linkGreen;
         public final ForgeConfigSpec.IntValue linkBlue;
@@ -1187,87 +1239,51 @@ public final class BossRefactorTwilightForestConfig {
         public final ForgeConfigSpec.DoubleValue linkMaximumRenderDistance;
 
         private SnowQueenConfig(ForgeConfigSpec.Builder builder) {
-            builder.comment("Snow Queen combat takeover settings.").push("snow_queen");
+            builder.comment("Snow Queen combat sidecar settings.").push("snow_queen");
             enabled = builder.comment(
-                            "Enable the complete Snow Queen combat takeover.",
+                            "Enable Snow Queen combat sidecar changes.",
                             "Changing this setting requires recreating existing Snow Queens or restarting the world/session.")
                     .define("enabled", true);
 
-            builder.comment("Skill selection.").push("skill_selection");
-            cruiseMinimumTicks = builder.comment("Minimum cruise duration between skills, in ticks.")
-                    .defineInRange("cruise_minimum_ticks", 20, 1, 1200);
-            cruiseMaximumTicks = builder.comment("Maximum cruise duration between skills, in ticks.")
-                    .defineInRange("cruise_maximum_ticks", 40, 1, 1200);
-            avoidImmediateSkillRepeat = builder.comment("Prevent the Snow Queen from immediately repeating a skill.")
-                    .define("avoid_immediate_skill_repeat", true);
-            builder.pop();
-
             builder.comment("Orbiting ice shields.").push("ice_shields");
             firstPhaseIceShieldCount = builder.comment("Ice shield count during the first phase.")
-                    .defineInRange("first_phase_count", 8, 0, 8);
+                    .defineInRange("first_phase_count", 6, 0, 8);
             secondPhaseIceShieldCount = builder.comment("Ice shield count during the second phase.")
-                    .defineInRange("second_phase_count", 4, 0, 8);
+                    .defineInRange("second_phase_count", 6, 0, 8);
             iceShieldOrbitRadius = builder.comment("Horizontal orbit radius of ice shields.")
                     .defineInRange("orbit_radius", 1.5, 0.0, 128.0);
             iceShieldAngularSpeedDegreesPerTick = builder.comment("Ice shield orbit angle advanced each tick, in degrees.")
                     .defineInRange("angular_speed_degrees_per_tick", 5.0, 0.0, 360.0);
+            iceShieldWaveAmplitude = builder.comment("Vertical wave amplitude of orbiting ice shields.")
+                    .defineInRange("wave_amplitude", 0.4, 0.0, 8.0);
+            iceShieldWaveSpeedDegreesPerTick = builder.comment("Ice shield vertical wave angle advanced each tick, in degrees.")
+                    .defineInRange("wave_speed_degrees_per_tick", 6.0, 0.0, 360.0);
             iceShieldVerticalOffset = builder.comment("Vertical offset of orbiting ice shields.")
                     .defineInRange("vertical_offset", 0.0, -64.0, 64.0);
-            secondPhaseIceShieldCollisionDamageMultiplier = builder.comment(
-                            "Attack-damage multiplier for second-phase ice shield collisions.")
-                    .defineInRange("second_phase_collision_damage_multiplier", 0.5, 0.0, 20.0);
+            iceShieldCollisionDamageMultiplier = builder.comment(
+                            "Attack-damage multiplier for ice shield collisions in all phases.")
+                    .defineInRange("collision_damage_multiplier", 1.0, 0.0, 20.0);
             iceShieldCollisionHitboxInflation = builder.comment("Extra collision reach around each ice shield.")
                     .defineInRange("collision_hitbox_inflation", 0.0, 0.0, 64.0);
             iceShieldCollisionDamageCooldownTicks = builder.comment("Ticks between ice shield collision damage pulses.")
                     .defineInRange("collision_damage_cooldown_ticks", 10, 0, 1200);
             iceShieldCollisionHitsNonPlayers = builder.comment("Allow ice shield collisions to hit non-player living entities.")
                     .define("collision_hits_non_players", true);
-            builder.pop();
-
-            builder.comment("Repeated slam.").push("slam");
-            slamCount = builder.comment("Number of consecutive slams.")
-                    .defineInRange("slam_count", 2, 1, 32);
-            slamWindupTicks = builder.comment("Slam warning duration, in ticks.")
-                    .defineInRange("windup_ticks", 20, 0, 1200);
-            slamPreparationHeight = builder.comment("Height gained before descending for a slam.")
-                    .defineInRange("preparation_height", 6.0, 0.0, 128.0);
-            slamDescentSpeed = builder.comment("Downward speed during a slam.")
-                    .defineInRange("descent_speed", 1.5, 0.0, 20.0);
-            slamMaximumDescentTicks = builder.comment("Maximum slam descent duration, in ticks.")
-                    .defineInRange("maximum_descent_ticks", 30, 1, 1200);
-            slamRadius = builder.comment("Radius of each slam impact.")
-                    .defineInRange("radius", 4.0, 0.0, 128.0);
-            slamDamageMultiplier = builder.comment("Attack-damage multiplier for each slam impact.")
-                    .defineInRange("damage_multiplier", 1.5, 0.0, 20.0);
-            slamHitsNonPlayers = builder.comment("Allow slam impacts to hit non-player living entities.")
-                    .define("hits_non_players", true);
-            betweenSlamsTicks = builder.comment("Delay between consecutive slams, in ticks.")
-                    .defineInRange("between_slams_ticks", 10, 0, 1200);
-            slamShieldCooldownEnabled = builder.comment("Put a used shield on cooldown after blocking a slam.")
+            iceShieldShieldCooldownEnabled = builder.comment("Put a used ice shield on cooldown after blocking an attack.")
                     .define("shield_cooldown_enabled", true);
-            slamShieldCooldownTicks = builder.comment("Shield cooldown after blocking a slam, in ticks.")
+            iceShieldShieldCooldownTicks = builder.comment("Ice shield cooldown after blocking an attack, in ticks.")
                     .defineInRange("shield_cooldown_ticks", 60, 0, 1200);
-            slamSlashBladeParryEnabled = builder.comment("Allow optional SlashBlade parries against slams.")
+            iceShieldSlashBladeParryEnabled = builder.comment("Allow optional SlashBlade parries against ice shields.")
                     .define("slashblade_parry_enabled", true);
-            slamParryFeedbackTicks = builder.comment("Feedback duration returned after parrying a slam, in ticks.")
+            iceShieldParryFeedbackTicks = builder.comment("Feedback duration returned after parrying an ice shield, in ticks.")
                     .defineInRange("parry_feedback_ticks", 20, 1, 1200);
             builder.pop();
 
-            builder.comment("Target chase.").push("chase");
-            chaseDurationTicks = builder.comment("Maximum chase duration, in ticks.")
-                    .defineInRange("duration_ticks", 100, 1, 1200);
-            chaseHeightOffset = builder.comment("Preferred chase height relative to the target.")
+            builder.comment("Original hover movement.").push("chase");
+            chaseHeightOffset = builder.comment("Preferred original hover height relative to the target.")
                     .defineInRange("height_offset", 0.0, -64.0, 64.0);
-            chaseSpeedMultiplier = builder.comment("Movement-speed multiplier during chase.")
+            chaseSpeedMultiplier = builder.comment("Original hover movement-speed multiplier.")
                     .defineInRange("speed_multiplier", 1.3, 0.0, 20.0);
-            chaseContactDamageMultiplier = builder.comment("Attack-damage multiplier for each chase contact hit.")
-                    .defineInRange("contact_damage_multiplier", 1.0, 0.0, 20.0);
-            chaseHitsNonPlayers = builder.comment("Allow chase contact attacks to hit non-player living entities.")
-                    .define("hits_non_players", true);
-            chaseContactDamageIntervalTicks = builder.comment("Ticks between chase contact damage pulses.")
-                    .defineInRange("contact_damage_interval_ticks", 10, 1, 1200);
-            chaseHitboxInflation = builder.comment("Extra contact reach around the Snow Queen during chase.")
-                    .defineInRange("hitbox_inflation", 0.5, 0.0, 64.0);
             builder.pop();
 
             builder.comment("Shattered ice rain.").push("shattered_ice_rain");
@@ -1277,8 +1293,10 @@ public final class BossRefactorTwilightForestConfig {
                     .defineInRange("first_phase_minimum_count", 2, 0, 32);
             shatteredIceRainFirstPhaseMaximumCount = builder.comment("Maximum shattered ice count during the first phase.")
                     .defineInRange("first_phase_maximum_count", 4, 0, 32);
-            shatteredIceRainSecondPhaseCount = builder.comment("Shattered ice count during the second phase.")
-                    .defineInRange("second_phase_count", 4, 0, 32);
+            shatteredIceRainSecondPhaseMinimumCount = builder.comment("Minimum shattered ice count during the second phase.")
+                    .defineInRange("second_phase_minimum_count", 3, 3, 32);
+            shatteredIceRainSecondPhaseMaximumCount = builder.comment("Maximum shattered ice count during the second phase.")
+                    .defineInRange("second_phase_maximum_count", 4, 3, 32);
             shatteredIceRainSpawnDistanceBehind = builder.comment("Distance behind the target where shattered ice starts spawning.")
                     .defineInRange("spawn_distance_behind", 3.0, 0.0, 128.0);
             shatteredIceRainSpawnSpacing = builder.comment("Spacing between shattered ice spawn positions.")
@@ -1308,34 +1326,25 @@ public final class BossRefactorTwilightForestConfig {
                     .defineInRange("explosion_delay_ticks", 60, 1, 12000);
             shatteredIceRainExplosionRadius = builder.comment("Explosion radius of a shattered ice crystal.")
                     .defineInRange("explosion_radius", 1.0, 0.0, 128.0);
-            shatteredIceRainPreserveOriginalBlockInteraction = builder.comment(
-                            "Preserve the original block interaction behavior of shattered ice explosions.")
-                    .define("preserve_original_block_interaction", true);
             builder.pop();
 
             builder.comment("Summoned links.").push("links");
             maximumLinks = builder.comment("Maximum number of active summoned links.")
-                    .defineInRange("maximum_links", 2, 0, 32);
+                    .defineInRange("maximum_links", 2, 0, 2);
             linkSummonDamageBonus = builder.comment("Additional damage fraction granted by each summoned link.")
                     .defineInRange("summon_damage_bonus", 0.3, 0.0, 20.0);
             linkQueenDamageReduction = builder.comment("Incoming damage fraction prevented while links are active.")
                     .defineInRange("queen_damage_reduction", 0.3, 0.0, 1.0);
+            linkEstablishWindupTicks = builder.comment("Windup before a summoned link is established, in ticks.")
+                    .defineInRange("establish_windup_ticks", 20, 0, 1200);
             linkTeleportDelayTicks = builder.comment("Delay before a link teleports, in ticks.")
                     .defineInRange("teleport_delay_ticks", 20, 0, 1200);
-            linkBurstWindupTicks = builder.comment("Windup before a link burst, in ticks.")
-                    .defineInRange("burst_windup_ticks", 20, 0, 1200);
             linkBurstRadius = builder.comment("Radius of a link burst.")
                     .defineInRange("burst_radius", 5.0, 0.0, 128.0);
             linkBurstDamageMultiplier = builder.comment("Attack-damage multiplier for a link burst.")
                     .defineInRange("burst_damage_multiplier", 1.5, 0.0, 20.0);
             linkBurstHitsNonPlayers = builder.comment("Allow link bursts to hit non-player living entities.")
                     .define("burst_hits_non_players", true);
-            phaseTwoStableIceCoreCount = builder.comment("Stable ice cores spawned when phase two begins.")
-                    .defineInRange("phase_two_stable_ice_core_count", 2, 0, 32);
-            stableIceCoreSpawnRadius = builder.comment("Horizontal radius for stable ice core spawns.")
-                    .defineInRange("stable_ice_core_spawn_radius", 3.0, 0.0, 128.0);
-            stableIceCoreSpawnVerticalOffset = builder.comment("Vertical offset for stable ice core spawns.")
-                    .defineInRange("stable_ice_core_spawn_vertical_offset", 0.0, -64.0, 64.0);
             builder.pop();
 
             builder.comment("Second phase.").push("phase_two");
@@ -1345,6 +1354,20 @@ public final class BossRefactorTwilightForestConfig {
                     .defineInRange("damage_multiplier", 1.2, 0.0, 20.0);
             phaseTwoSpeedMultiplier = builder.comment("Movement-speed multiplier during phase two.")
                     .defineInRange("speed_multiplier", 1.2, 0.0, 20.0);
+            fallingIceIntervalTicks = builder.comment("Ticks between phase-two falling ice attacks.")
+                    .defineInRange("falling_ice_interval_ticks", 160, 1, 12000);
+            fallingIceWindupTicks = builder.comment("Phase-two falling ice warning duration, in ticks.")
+                    .defineInRange("falling_ice_windup_ticks", 20, 1, 1200);
+            fallingIceRadius = builder.comment("Impact radius of phase-two falling ice.")
+                    .defineInRange("falling_ice_radius", 2.5, 0.5, 32.0);
+            fallingIceCount = builder.comment("Visible falling-ice blocks per phase-two impact.")
+                    .defineInRange("falling_ice_count", 6, 1, 64);
+            fallingIceSpawnHeight = builder.comment("Preferred height above phase-two impact points for falling ice.")
+                    .defineInRange("falling_ice_spawn_height", 10.0, 2.0, 64.0);
+            fallingIceDamageMultiplier = builder.comment("Attack-damage multiplier for phase-two falling ice.")
+                    .defineInRange("falling_ice_damage_multiplier", 1.0, 0.0, 20.0);
+            fallingIceHitsNonPlayers = builder.comment("Allow phase-two falling ice to hit non-player living entities.")
+                    .define("falling_ice_hits_non_players", true);
             builder.pop();
 
             builder.comment("Link visual effects.").push("visuals");

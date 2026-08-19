@@ -1,9 +1,6 @@
 package com.tonywww.bossrefactortf.boss.naga;
 
-import com.tonywww.bossrefactortf.boss.TwilightBossParryAccess;
-import com.tonywww.bossrefactortf.config.BossRefactorTwilightForestConfig;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.nbt.CompoundTag;
 
 import java.util.List;
 
@@ -22,9 +19,12 @@ public final class NagaCombatRulesSelfTest {
         check(NagaCombatRules.suppressesExternalParryStun(
                         NagaActionState.POUNCE_WINDUP, true, true),
                 "an available second-phase token must suppress pounce stun");
-        check(!NagaCombatRules.suppressesExternalParryStun(
-                        NagaActionState.TAIL_STRIKE, true, false),
-                "a spent second-phase token must not suppress tail stun");
+        check(NagaCombatRules.suppressesExternalParryStun(
+                        NagaActionState.CHARGE, true, false),
+                "local charge stun must replace SenDimS external stun");
+        check(NagaCombatRules.suppressesExternalParryStun(
+                        NagaActionState.POUNCE_WINDUP, false, false),
+                "local pounce stun must replace SenDimS external stun");
         check(NagaCombatRules.isStunned(NagaActionState.STUNNED),
                 "stunned action state must suppress movement and attacks");
         check(!NagaCombatRules.isStunned(NagaActionState.CRUISING),
@@ -35,14 +35,30 @@ public final class NagaCombatRulesSelfTest {
                 "an available phase-two token must interrupt without stun");
         check(NagaCombatRules.shouldEnterStunnedState(true, false),
                 "phase two must become stunnable after spending its token");
+        check(NagaCombatRules.isChargeShieldBlock(
+                        NagaActionState.CHARGE, true, true),
+                "an actively raised shield during charge must interrupt");
+        check(!NagaCombatRules.isChargeShieldBlock(
+                        NagaActionState.POUNCE_FLIGHT, true, true),
+                "a pounce shield block must not enter the charge hook");
+        check(!NagaCombatRules.isChargeShieldBlock(
+                        NagaActionState.CHARGE, false, true),
+                "non-shield blocking must not enter the charge hook");
+        check(!NagaCombatRules.isChargeShieldBlock(
+                        NagaActionState.CHARGE, true, false),
+                "an inactive shield must not enter the charge hook");
 
         check(NagaCombatRules.cruiseTicks(20, 40, 0.0) == 20,
                 "minimum cruise roll must use twenty ticks");
         check(NagaCombatRules.cruiseTicks(20, 40, 1.0) == 40,
                 "maximum cruise roll must use forty ticks");
+        check(List.of(NagaSkill.values()).equals(List.of(
+                        NagaSkill.NONE, NagaSkill.CHARGE,
+                        NagaSkill.POUNCE, NagaSkill.VENOM_BREATH)),
+                "skill pool must contain only charge, pounce, and venom");
         for (NagaSkill previous : new NagaSkill[] {
+                NagaSkill.CHARGE,
                 NagaSkill.POUNCE,
-                NagaSkill.TAIL_SWEEP,
                 NagaSkill.VENOM_BREATH}) {
             for (int roll = 0; roll < 6; roll++) {
                 check(NagaCombatRules.nextSkill(
@@ -51,7 +67,7 @@ public final class NagaCombatRulesSelfTest {
             }
         }
         check(NagaCombatRules.nextSkill(
-                        NagaSkill.POUNCE, true, false, false, 0)
+                        NagaSkill.POUNCE, false, true, false, 0)
                         == NagaSkill.NONE,
                 "cooldowns and repeat exclusion may force another cruise");
 
@@ -61,14 +77,6 @@ public final class NagaCombatRulesSelfTest {
         check(!NagaCombatRules.isInsideCircle(
                         4.01, 0.0, 0.0, 0.0, 4.0),
                 "pounce circle must exclude points outside the mark");
-        check(NagaCombatRules.isInsideArc(
-                        0.0, 6.0, 0.0, 0.0,
-                        1.0, 0.0, 6.0, 90.0),
-                "tail semicircle must include its side boundary");
-        check(!NagaCombatRules.isInsideArc(
-                        -1.0, 0.0, 0.0, 0.0,
-                        1.0, 0.0, 6.0, 90.0),
-                "tail semicircle must exclude the rear side");
         check(NagaCombatRules.isInsideCorridor(
                         16.0, 2.0, 0.0, 0.0,
                         1.0, 0.0, 16.0, 4.0),
@@ -117,6 +125,23 @@ public final class NagaCombatRulesSelfTest {
                 "expired fire snake must clear its visual state immediately");
         check(NagaCombatRules.isFireSnakeVisualActive(1),
                 "positive fire snake duration must activate its visual state");
+        NagaCombatRules.FireSnakeCycle firstFireSnake =
+                NagaCombatRules.advanceFireSnakeCycle(
+                        true, 0, 0, 300, 600);
+        check(firstFireSnake.started() && firstFireSnake.activeTicks() == 300,
+                "phase two must start its first fire snake immediately");
+        NagaCombatRules.FireSnakeCycle endedFireSnake =
+                NagaCombatRules.advanceFireSnakeCycle(
+                        true, 1, 0, 300, 600);
+        check(endedFireSnake.ended()
+                        && endedFireSnake.cooldownTicks() == 600,
+                "an ended fire snake must enter the configured cooldown");
+        NagaCombatRules.FireSnakeCycle repeatedFireSnake =
+                NagaCombatRules.advanceFireSnakeCycle(
+                        true, 0, 1, 300, 600);
+        check(repeatedFireSnake.started()
+                        && repeatedFireSnake.activeTicks() == 300,
+                "an expired cooldown must start another fire snake");
 
         NagaBodyRules.Point trailHead = new NagaBodyRules.Point(3.0, 1.0, 0.0);
         List<NagaBodyRules.Point> trail = List.of(
@@ -135,40 +160,6 @@ public final class NagaCombatRulesSelfTest {
                 "the teleport reset boundary must remain continuous");
         check(NagaBodyRules.shouldResetTrail(32.01 * 32.01, 32.0),
                 "movement beyond the reset distance must rebuild the trail");
-        checkClose(NagaBodyRules.tailSweepProgress(0, 8), 0.0,
-                "tail sweep must begin at the starting side");
-        checkClose(NagaBodyRules.tailSweepProgress(7, 8), 1.0,
-                "tail sweep must reach the opposite side on tick eight");
-        int tailDamageApplications = 0;
-        boolean tailDamageApplied = false;
-        for (int tick = 0; tick < 8; tick++) {
-            if (NagaBodyRules.shouldApplyTailDamage(
-                    tick, 8, tailDamageApplied)) {
-                tailDamageApplications++;
-                tailDamageApplied = true;
-            }
-        }
-        check(tailDamageApplications == 1,
-                "tail sweep damage must be applied exactly once");
-        checkClose(NagaBodyRules.sweepAngleRadians(0.0, 90.0),
-                Math.PI * 0.5,
-                "tail sweep must begin on one side of the forward arc");
-        checkClose(NagaBodyRules.sweepAngleRadians(1.0, 90.0),
-                -Math.PI * 0.5,
-                "tail sweep must finish on the other side of the forward arc");
-        NagaBodyRules.TailPoseWeights startPose =
-                NagaBodyRules.tailPoseWeights(0.0);
-        NagaBodyRules.TailPoseWeights frontPose =
-                NagaBodyRules.tailPoseWeights(0.5);
-        NagaBodyRules.TailPoseWeights endPose =
-                NagaBodyRules.tailPoseWeights(1.0);
-        checkClose(startPose.start(), 1.0,
-                "tail pose must begin entirely on the starting side");
-        checkClose(frontPose.front(), 1.0,
-                "tail pose midpoint must point entirely forward");
-        checkClose(endPose.end(), 1.0,
-                "tail pose must finish entirely on the opposite side");
-
         NagaCombatState savedState = new NagaCombatState();
         savedState.actionState = NagaActionState.VENOM_PROJECTILE;
         savedState.lastSkill = NagaSkill.VENOM_BREATH;
@@ -178,9 +169,10 @@ public final class NagaCombatRulesSelfTest {
         savedState.stunImmunityAvailable = false;
         savedState.stunImmunityRecoveryTicks = 200;
         savedState.fireSnakeTicks = 250;
+        savedState.fireSnakeCooldownTicks = 42;
         savedState.venomProjectileId = java.util.UUID.randomUUID();
         NagaCombatState loadedState = new NagaCombatState();
-        loadedState.load(savedState.save());
+        loadedState.load(savedState.save(), 600);
         check(loadedState.actionState == NagaActionState.VENOM_PROJECTILE,
                 "active venom state must survive reload");
         check(loadedState.lastSkill == NagaSkill.VENOM_BREATH,
@@ -191,100 +183,87 @@ public final class NagaCombatRulesSelfTest {
                 "immunity recovery must survive reload");
         check(loadedState.fireSnakeTicks == 250,
                 "active fire snake must survive reload");
+        check(loadedState.fireSnakeCooldownTicks == 42,
+                "fire snake cooldown must survive reload");
         check(savedState.venomProjectileId.equals(
                         loadedState.venomProjectileId),
                 "moving venom identity must survive reload");
 
-        BossRefactorTwilightForestConfig.NagaConfig config =
-                BossRefactorTwilightForestConfig.NAGA;
-        check(config.pounceWindupTicks.getDefault() == 30,
-                "default pounce windup must be thirty ticks");
-        check(config.stunDurationTicks.getDefault() == 60,
-                "default defensive stun must last sixty ticks");
-        check(config.pounceFlightTicks.getDefault() == 20,
-                "default pounce flight must be twenty ticks");
-        checkClose(config.pounceImpactRadius.getDefault(), 4.0,
-                "default pounce radius must be four blocks");
-        checkClose(config.pounceVerticalRange.getDefault(), 4.0,
-                "default pounce vertical range must be four blocks");
-        check(config.tailWindupTicks.getDefault() == 20,
-                "default tail windup must be twenty ticks");
-        check(config.tailDurationTicks.getDefault() == 8,
-                "default visible tail sweep must last eight ticks");
-        checkClose(config.tailRadius.getDefault(), 6.0,
-                "default tail radius must be six blocks");
-        checkClose(config.tailVerticalRange.getDefault(), 3.0,
-                "default tail vertical range must be three blocks");
-        checkClose(config.tailHalfAngleDegrees.getDefault(), 90.0,
-                "default tail half-angle must be ninety degrees");
-        checkClose(config.bodySegmentSpacing.getDefault(), 2.0,
-                "default body segment spacing must be two blocks");
-        checkClose(config.bodyTrailSampleSpacing.getDefault(), 0.25,
-                "default body trail samples must be a quarter block apart");
-        checkClose(config.bodyTrailTeleportResetDistance.getDefault(), 32.0,
-                "default body teleport reset distance must be thirty-two blocks");
-        checkClose(config.bodyTailCurveDegrees.getDefault(), 270.0,
-                "default tail pose must sweep through the forward half-circle");
-        check(config.venomWindupTicks.getDefault() == 30,
-                "default venom windup must be thirty ticks");
-        checkClose(config.venomLength.getDefault(), 16.0,
-                "default venom range must be sixteen blocks");
-        checkClose(config.venomWidth.getDefault(), 4.0,
-                "default venom width must be four blocks");
-        checkClose(config.venomProjectileRadius.getDefault(), 2.0,
-                "default venom collision must cover the marked corridor width");
-        check(config.venomCloudDurationTicks.getDefault() == 140,
-                "default venom cloud must last 140 ticks");
-        checkClose(config.venomCloudVerticalRange.getDefault(), 3.0,
-                "default venom cloud vertical range must be three blocks");
-        checkClose(config.venomBlockedCloudOffset.getDefault(), 0.75,
-                "shield-blocked venom must land three quarters of a block outward");
-        check(config.venomPrimaryRed.getDefault() == 190
-                        && config.venomPrimaryGreen.getDefault() == 255
-                        && config.venomPrimaryBlue.getDefault() == 35,
-                "default venom core must be fluorescent yellow-green");
-        check(config.venomSecondaryRed.getDefault() == 18
-                        && config.venomSecondaryGreen.getDefault() == 105
-                        && config.venomSecondaryBlue.getDefault() == 18,
-                "default venom mist must be deep green");
-        checkClose(config.venomPrimaryParticleScale.getDefault(), 1.4,
-                "default venom core particle scale must be configurable");
-        checkClose(config.venomSecondaryParticleScale.getDefault(), 2.2,
-                "default venom mist particle scale must be configurable");
-        check(config.fireSnakeDurationTicks.getDefault() == 300,
-                "default fire snake must last 300 ticks");
-        checkClose(config.fireSnakeRedMultiplier.getDefault(), 1.0,
-                "fire snake must retain its full red model channel");
-        checkClose(config.fireSnakeGreenMultiplier.getDefault(), 0.25,
-                "fire snake must strongly reduce its green model channel");
-        checkClose(config.fireSnakeBlueMultiplier.getDefault(), 0.2,
-                "fire snake must strongly reduce its blue model channel");
-        check(config.firePointDurationTicks.getDefault() == 300,
-                "default fire points must last 300 ticks");
-        checkClose(config.firePointVerticalRange.getDefault(), 3.0,
-                "default fire point vertical range must be three blocks");
-        check(config.stunImmunityRecoveryTicks.getDefault() == 300,
-                "default stun ward recovery must last 300 ticks");
-
-        TwilightBossParryAccess defaultParryAccess = new TwilightBossParryAccess() {
-            @Override
-            public boolean bossRefactorTF$isCurrentAttackParryable() {
-                return false;
-            }
-
-            @Override
-            public int bossRefactorTF$getParryFeedbackTicks() {
-                return 0;
-            }
-
-            @Override
-            public int bossRefactorTF$acceptParry(
-                    LivingEntity actor, ResourceLocation sourceId) {
-                return 0;
-            }
+        NagaActionState[] legacyActions = {
+                NagaActionState.IDLE,
+                NagaActionState.CRUISING,
+                NagaActionState.POUNCE_WINDUP,
+                NagaActionState.POUNCE_FLIGHT,
+                NagaActionState.POUNCE_IMPACT,
+                NagaActionState.CRUISING,
+                NagaActionState.CRUISING,
+                NagaActionState.VENOM_WINDUP,
+                NagaActionState.VENOM_PROJECTILE,
+                NagaActionState.STUNNED
         };
-        check(!defaultParryAccess.bossRefactorTF$suppressesExternalParryStun(),
-                "boss parry access must preserve external stun by default");
+        for (int ordinal = 0; ordinal < legacyActions.length; ordinal++) {
+            CompoundTag legacyState = new CompoundTag();
+            legacyState.putInt("ActionState", ordinal);
+            NagaCombatState migratedState = new NagaCombatState();
+            migratedState.load(legacyState, 600);
+            check(migratedState.actionState == legacyActions[ordinal],
+                    "legacy action ordinal " + ordinal
+                            + " must migrate exactly");
+        }
+        NagaSkill[] legacySkills = {
+                NagaSkill.NONE, NagaSkill.POUNCE,
+                NagaSkill.NONE, NagaSkill.VENOM_BREATH
+        };
+        for (int ordinal = 0; ordinal < legacySkills.length; ordinal++) {
+            CompoundTag legacyState = new CompoundTag();
+            legacyState.putInt("LastSkill", ordinal);
+            NagaCombatState migratedState = new NagaCombatState();
+            migratedState.load(legacyState, 600);
+            check(migratedState.lastSkill == legacySkills[ordinal],
+                    "legacy skill ordinal " + ordinal
+                            + " must migrate exactly");
+        }
+        CompoundTag legacySecondPhase = new CompoundTag();
+        legacySecondPhase.putBoolean("SecondPhase", true);
+        NagaCombatState migratedSecondPhase = new NagaCombatState();
+        migratedSecondPhase.load(legacySecondPhase, 600);
+        check(migratedSecondPhase.fireSnakeCooldownTicks == 600,
+                "legacy inactive phase-two saves must initialize cooldown once");
+        CompoundTag stableCharge = new CompoundTag();
+        stableCharge.putString("ActionStateId", "charge");
+        stableCharge.putString("LastSkillId", "charge");
+        NagaCombatState loadedCharge = new NagaCombatState();
+        loadedCharge.load(stableCharge, 600);
+        check(loadedCharge.actionState == NagaActionState.CHARGE
+                        && loadedCharge.lastSkill == NagaSkill.CHARGE,
+                "charge state and skill must use stable string identifiers");
+        CompoundTag removedTail = new CompoundTag();
+        removedTail.putString("ActionStateId", "tail_strike");
+        removedTail.putString("LastSkillId", "tail_sweep");
+        NagaCombatState migratedTail = new NagaCombatState();
+        migratedTail.load(removedTail, 600);
+        check(migratedTail.actionState == NagaActionState.CRUISING
+                        && migratedTail.lastSkill == NagaSkill.NONE,
+                "removed tail string identifiers must migrate safely");
+
+        check(NagaCombatDefaults.CHARGE_COOLDOWN_TICKS == 100,
+                "default vanilla charge cooldown must be 100 ticks");
+        check(NagaCombatDefaults.FIRE_SNAKE_DURATION_TICKS == 300,
+                "default fire snake must last 300 ticks");
+        check(NagaCombatDefaults.FIRE_SNAKE_COOLDOWN_TICKS == 600,
+                "default fire snake cooldown must last 600 ticks");
+        check(NagaCombatDefaults.FIRE_POINT_DURATION_TICKS == 200,
+                "default fire points must last 200 ticks");
+        checkClose(NagaCombatDefaults.FIRE_DAMAGE_MULTIPLIER, 0.3,
+                "default fire point damage must be attack damage times 0.3");
+        check(NagaCombatDefaults.FIRE_DAMAGE_INTERVAL_TICKS == 20,
+                "default fire point damage interval must be 20 ticks");
+        check(NagaCombatDefaults.FIRE_IGNITE_TICKS == 100,
+                "default fire point ignition must last 100 ticks");
+        checkClose(NagaCombatDefaults.SECOND_PHASE_ATTACK_MULTIPLIER, 1.2,
+                "phase two attack damage must be multiplied by 1.2");
+        checkClose(NagaCombatDefaults.SECOND_PHASE_SPEED_MULTIPLIER, 1.2,
+                "phase two movement speed must be multiplied by 1.2");
     }
 
     private static void checkClose(

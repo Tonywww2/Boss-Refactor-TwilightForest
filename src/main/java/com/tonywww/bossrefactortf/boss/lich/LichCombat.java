@@ -44,16 +44,19 @@ public final class LichCombat {
     public static boolean hasCombatWork(Lich lich) {
         LichCombatState state = state(lich);
         return state.customClone
-            || state.secondPhase
-            && (state.actionState != LichActionState.IDLE
-            || isRetainableTarget(lich, lich.getTarget()));
+                || state.actionState != LichActionState.IDLE
+                || state.secondPhase
+                && isRetainableTarget(lich, lich.getTarget());
     }
 
     public static boolean requiresExclusiveControl(Lich lich) {
         LichCombatState state = state(lich);
         return state.secondPhase && !state.customClone
                 || state.customClone
-                && state.actionState == LichActionState.SHIELD_BASH_WINDUP;
+                && state.actionState == LichActionState.SHIELD_BASH_WINDUP
+                || !state.customClone && !state.secondPhase
+                && (state.actionState == LichActionState.SHIELD_BASH_WINDUP
+                || state.actionState == LichActionState.STUNNED);
     }
 
     public static boolean isSecondPhase(Lich lich) {
@@ -70,6 +73,14 @@ public final class LichCombat {
 
     public static boolean shouldSuppressVanillaPhaseLogic(Lich lich) {
         return isSecondPhase(lich) && !isCustomClone(lich);
+    }
+
+    public static boolean shouldSuppressVanillaShadowsGoal(Lich lich) {
+        LichCombatState state = state(lich);
+        return !state.customClone
+                && (state.secondPhase
+                || state.actionState == LichActionState.SHIELD_BASH_WINDUP
+                || state.actionState == LichActionState.STUNNED);
     }
 
     public static boolean shouldSuppressVanillaCloneAttack(Lich lich) {
@@ -107,6 +118,10 @@ public final class LichCombat {
                 || !LichCombatRules.shouldEnterSecondPhase(
                         state.secondPhase, state.customClone,
                         previousLayers, currentLayers)) {
+            return;
+        }
+        if (state.actionState == LichActionState.SHIELD_BASH_WINDUP) {
+            state.secondPhasePending = true;
             return;
         }
         enterSecondPhase(lich, state);
@@ -200,8 +215,22 @@ public final class LichCombat {
             tickCustomClone(lich, state);
         } else if (state.secondPhase) {
             tickSecondPhaseMaster(lich, state);
+        } else {
+            tickFirstPhaseMaster(lich, state);
         }
         synchronizeParryWindow(lich);
+    }
+
+    public static void tickFirstPhaseBackground(Lich lich) {
+        if (lich.level().isClientSide() || !customCombatEnabled()) {
+            return;
+        }
+        LichCombatState state = state(lich);
+        if (state.customClone || state.secondPhase
+                || state.actionState != LichActionState.IDLE) {
+            return;
+        }
+        tickFirstPhaseMaster(lich, state);
     }
 
     public static void restoreVisualState(Lich lich) {
@@ -249,6 +278,7 @@ public final class LichCombat {
     private static void enterSecondPhase(
             Lich lich, LichCombatState state) {
         state.secondPhase = true;
+        state.secondPhasePending = false;
         state.shieldBashCooldown = 0;
         state.summonCooldown = 0;
         state.meleeCooldown = 0;
@@ -258,6 +288,24 @@ public final class LichCombat {
         state.shieldLayers = shieldLayers;
         lich.setMinionsToSummon(0);
         enterIdle(lich);
+    }
+
+    private static void tickFirstPhaseMaster(
+            Lich lich, LichCombatState state) {
+        decrementCooldowns(state);
+        switch (state.actionState) {
+            case IDLE -> {
+                LivingEntity target = lich.getTarget();
+                if (!state.secondPhase && !state.customClone
+                        && isRetainableTarget(lich, target)
+                        && state.shieldBashCooldown <= 0) {
+                    beginShieldBash(lich, state, target);
+                }
+            }
+            case SHIELD_BASH_WINDUP -> tickShieldBashWindup(lich, state);
+            case STUNNED -> tickStunned(lich, state);
+            default -> enterIdle(lich);
+        }
     }
 
     private static void tickSecondPhaseMaster(
@@ -431,6 +479,7 @@ public final class LichCombat {
         state.originY = lich.getY();
         state.originZ = lich.getZ();
         lockDirection(lich, target, state);
+        state.secondPhasePending = false;
         state.shieldBashEmpowered = lich.getShieldStrength() > 0;
         if (state.shieldBashEmpowered) {
             lich.setShieldStrength(lich.getShieldStrength() - 1);
@@ -463,12 +512,18 @@ public final class LichCombat {
             lich.discard();
             return;
         }
+        if (state.secondPhasePending) {
+            enterSecondPhase(lich, state);
+            return;
+        }
         state.shieldBashCooldown = Math.max(
                 0, LichCombatConfig.shieldBashCooldownTicks());
         if (defended) {
             beginStun(lich, state);
-        } else {
+        } else if (state.secondPhase) {
             beginCruise(lich, state);
+        } else {
+            enterIdle(lich);
         }
     }
 
@@ -556,7 +611,11 @@ public final class LichCombat {
         stopHorizontalMovement(lich);
         state.stateTicks++;
         if (state.stateTicks >= state.stateDuration) {
-            beginCruise(lich, state);
+            if (state.secondPhase) {
+                beginCruise(lich, state);
+            } else {
+                enterIdle(lich);
+            }
         }
     }
 

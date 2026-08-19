@@ -4,12 +4,14 @@ import com.tonywww.bossrefactortf.BossRefactorTwilightForest;
 import com.tonywww.bossrefactortf.boss.TwilightBossParryAccess;
 import com.tonywww.bossrefactortf.boss.TwilightBossParryIntegration;
 import com.tonywww.bossrefactortf.config.BossRefactorTwilightForestConfig;
+import com.tonywww.bossrefactortf.registry.BossRefactorTwilightForestEntities;
 import com.tonywww.bossrefactortf.telegraph.AttackTelegraph;
 import com.tonywww.bossrefactortf.telegraph.AttackTelegraphShape;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.LivingEntity;
@@ -18,6 +20,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.ShieldItem;
 import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.level.gameevent.GameEvent;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
@@ -40,8 +43,12 @@ public final class HydraCombat {
         return BossRefactorTwilightForestConfig.HYDRA.enabled.get();
     }
 
-    public static void suppressVanillaHeadActions(Hydra hydra) {
+    public static void enforceCustomAttackOwnership(Hydra hydra) {
         if (hydra.level().isClientSide() || !customCombatEnabled()) {
+            return;
+        }
+        HydraCombatState state = state(hydra);
+        if (state.actionState == HydraActionState.IDLE) {
             return;
         }
         for (HydraHeadContainer head : activeContainers(hydra)) {
@@ -50,6 +57,22 @@ public final class HydraCombat {
                 head.endCurrentAction();
             }
         }
+    }
+
+    public static boolean shouldSuppressVanillaAttackSelection(Hydra hydra) {
+        if (!customCombatEnabled()) {
+            return false;
+        }
+        HydraCombatState state = state(hydra);
+        if (state.actionState != HydraActionState.IDLE) {
+            return true;
+        }
+        if (!state.combatInitialized || hasVanillaAttackInProgress(hydra)) {
+            return false;
+        }
+        return state.fireLordCooldown <= 1
+            || state.evilFireballCooldown <= 1
+            || state.ordinaryAttackCooldown <= 1;
     }
 
     public static void tick(Hydra hydra) {
@@ -72,9 +95,10 @@ public final class HydraCombat {
         switch (state.actionState) {
             case IDLE -> tickIdle(hydra, state);
             case WINDUP -> tickWindup(hydra, state);
-            case FOLLOW_UP_DELAY -> tickFollowUpDelay(hydra, state);
             case RECOVERY -> tickRecovery(hydra, state);
             case FIRE_LORD -> tickFireLord(hydra, state);
+            case EVIL_FIREBALL_WINDUP -> tickEvilFireballWindup(
+                hydra, state);
         }
 
         synchronizeHeadTargets(hydra, state);
@@ -86,7 +110,7 @@ public final class HydraCombat {
     public static boolean isCurrentAttackParryable(Hydra hydra) {
         HydraCombatState state = state(hydra);
         return state.actionState == HydraActionState.WINDUP
-                && state.skill.isOrdinaryMelee();
+            && state.skill.isCustomMelee();
     }
 
     public static boolean acceptParry(Hydra hydra) {
@@ -120,6 +144,8 @@ public final class HydraCombat {
         state.combatInitialized = true;
         state.ordinaryAttackCooldown = BossRefactorTwilightForestConfig.HYDRA
                 .ordinaryAttackIntervalTicks.get();
+        state.evilFireballCooldown = BossRefactorTwilightForestConfig.HYDRA
+            .evilFireballCooldownTicks.get();
         state.fireLordCooldown = BossRefactorTwilightForestConfig.HYDRA
                 .fireLordInitialDelayTicks.get();
         state.secondPhaseBeamCooldown = BossRefactorTwilightForestConfig.HYDRA
@@ -131,16 +157,29 @@ public final class HydraCombat {
         if (!isRetainableTarget(hydra, target)) {
             return;
         }
+        if (hasVanillaAttackInProgress(hydra)) {
+            return;
+        }
         if (state.fireLordCooldown <= 0) {
             beginFireLord(hydra, target, state);
             return;
         }
+        if (state.evilFireballCooldown <= 0) {
+            int headIndex = randomIdleHead(hydra);
+            if (headIndex >= 0) {
+                beginEvilFireball(hydra, target, state, headIndex);
+            }
+            return;
+        }
         if (state.ordinaryAttackCooldown <= 0) {
-            beginOrdinaryAttack(
-                    hydra, target, state,
-                    HydraCombatRules.ordinarySkill(
-                            hydra.getRandom().nextInt()),
-                    randomActiveHead(hydra, -1), false);
+            int headIndex = randomIdleHead(hydra);
+            if (headIndex >= 0) {
+                beginOrdinaryAttack(
+                        hydra, target, state,
+                        HydraCombatRules.customMeleeSkill(
+                                hydra.getRandom().nextInt()),
+                        headIndex);
+            }
         }
     }
 
@@ -159,53 +198,7 @@ public final class HydraCombat {
             interruptCurrentHead(hydra, state);
             return;
         }
-        if (state.secondPhase && !state.followUpAttack) {
-            int followUpHead = randomActiveHead(
-                    hydra, state.activeHeadIndex);
-            if (followUpHead >= 0) {
-            HydraSkill followUpSkill = HydraCombatRules.ordinarySkill(
-                        hydra.getRandom().nextInt());
-            clearHeadTarget(hydra, state.activeHeadIndex);
-            int followUpDelay = BossRefactorTwilightForestConfig.HYDRA
-                .followUpDelayTicks.get();
-            if (followUpDelay <= 0) {
-                beginOrdinaryAttack(
-                    hydra, hydra.getTarget(), state,
-                    followUpSkill, followUpHead, true);
-                return;
-            }
-            state.pendingFollowUpHeadIndex = followUpHead;
-            state.pendingFollowUpSkill = followUpSkill;
-                enterState(
-                        state, HydraActionState.FOLLOW_UP_DELAY,
-                followUpDelay);
-                state.skill = HydraSkill.NONE;
-                state.activeHeadIndex = -1;
-                state.followUpAttack = false;
-                return;
-            }
-        }
         beginRecovery(hydra, state);
-    }
-
-    private static void tickFollowUpDelay(
-            Hydra hydra, HydraCombatState state) {
-        state.actionTicks++;
-        if (state.actionTicks < state.actionDuration) {
-            return;
-        }
-        LivingEntity target = hydra.getTarget();
-        if (!isRetainableTarget(hydra, target)
-                || !hasUsableHead(hydra, state.pendingFollowUpHeadIndex)) {
-            beginRecovery(hydra, state);
-            return;
-        }
-        HydraSkill skill = state.pendingFollowUpSkill;
-        int headIndex = state.pendingFollowUpHeadIndex;
-        state.pendingFollowUpSkill = HydraSkill.NONE;
-        state.pendingFollowUpHeadIndex = -1;
-        beginOrdinaryAttack(
-                hydra, target, state, skill, headIndex, true);
     }
 
     private static void tickRecovery(Hydra hydra, HydraCombatState state) {
@@ -215,6 +208,37 @@ public final class HydraCombat {
         }
     }
 
+    private static void tickEvilFireballWindup(
+            Hydra hydra, HydraCombatState state) {
+        if (!hasUsableHead(hydra, state.activeHeadIndex)) {
+            beginRecovery(hydra, state);
+            return;
+        }
+        state.actionTicks++;
+        if (state.actionTicks < state.actionDuration) {
+            return;
+        }
+        Vec3 origin = attackOrigin(hydra, state.activeHeadIndex);
+        Vec3 direction = new Vec3(
+            state.lockedX - origin.x,
+            state.lockedY + 1.0 - origin.y,
+            state.lockedZ - origin.z);
+        if (direction.lengthSqr() < 1.0E-6) {
+            direction = new Vec3(
+                state.directionX, 0.0, state.directionZ);
+        }
+        direction = direction.normalize();
+        HydraEvilFireball fireball = new HydraEvilFireball(
+            BossRefactorTwilightForestEntities.HYDRA_EVIL_FIREBALL.get(),
+            hydra.level());
+        fireball.initialize(
+            hydra, origin.add(direction.scale(2.0)), direction,
+            state.secondPhase);
+        hydra.level().addFreshEntity(fireball);
+        hydra.playSound(SoundEvents.FIRECHARGE_USE, 3.0F, 0.55F);
+        beginRecovery(hydra, state);
+    }
+
     private static void tickFireLord(Hydra hydra, HydraCombatState state) {
         state.actionTicks++;
         double radius = fireLordRadius(state);
@@ -222,17 +246,21 @@ public final class HydraCombat {
         int damageInterval = BossRefactorTwilightForestConfig.HYDRA
                 .fireLordDamageIntervalTicks.get();
         if (state.actionTicks % damageInterval == 0) {
+            float multiplier = HydraCombatRules.fireLordMultiplier(
+                BossRefactorTwilightForestConfig.HYDRA
+                    .fireLordDamageMultiplier.get().floatValue(),
+                BossRefactorTwilightForestConfig.HYDRA
+                    .fireLordDamagePerHead.get().floatValue(),
+                countActiveHeads(hydra));
             damageFireCircle(
                     hydra,
                     new Vec3(state.lockedX, state.lockedY, state.lockedZ),
-                    radius,
-                    BossRefactorTwilightForestConfig.HYDRA
-                            .fireLordDamageMultiplier.get().floatValue());
+                radius, multiplier);
         }
         int beamInterval = BossRefactorTwilightForestConfig.HYDRA
                 .fireLordBeamIntervalTicks.get();
         if (state.actionTicks % beamInterval == 0) {
-            spawnBeams(
+            spawnTargetedBeams(
                     hydra, state,
                     new Vec3(state.lockedX, state.lockedY, state.lockedZ),
                     BossRefactorTwilightForestConfig.HYDRA
@@ -251,20 +279,17 @@ public final class HydraCombat {
 
     private static void beginOrdinaryAttack(
             Hydra hydra, LivingEntity target, HydraCombatState state,
-            HydraSkill skill, int headIndex, boolean followUp) {
-        if (!skill.isOrdinaryMelee() || headIndex < 0) {
+            HydraSkill skill, int headIndex) {
+        if (!skill.isCustomMelee() || headIndex < 0) {
             beginRecovery(hydra, state);
             return;
         }
         state.skill = skill;
         state.activeHeadIndex = headIndex;
-        state.followUpAttack = followUp;
-        state.pendingFollowUpSkill = HydraSkill.NONE;
-        state.pendingFollowUpHeadIndex = -1;
         state.recoveryVisualProgress = 0.0F;
         lockTarget(hydra, target, state);
-        enterState(state, HydraActionState.WINDUP, windupTicks(skill));
         hydra.hc[headIndex].setTargetEntity(target);
+        enterState(state, HydraActionState.WINDUP, windupTicks(skill));
     }
 
     private static void beginFireLord(
@@ -280,9 +305,6 @@ public final class HydraCombat {
         state.lockedZ = centerZ;
         state.skill = HydraSkill.FIRE_LORD;
         state.activeHeadIndex = -1;
-        state.followUpAttack = false;
-        state.pendingFollowUpSkill = HydraSkill.NONE;
-        state.pendingFollowUpHeadIndex = -1;
         state.recoveryVisualProgress = 0.0F;
         state.fireLordCooldown = BossRefactorTwilightForestConfig.HYDRA
                 .fireLordCooldownTicks.get();
@@ -293,6 +315,27 @@ public final class HydraCombat {
         hydra.playSound(SoundEvents.ENDER_DRAGON_GROWL, 3.0F, 0.7F);
     }
 
+    private static void beginEvilFireball(
+            Hydra hydra, LivingEntity target, HydraCombatState state,
+            int headIndex) {
+        if (headIndex < 0) {
+            beginRecovery(hydra, state);
+            return;
+        }
+        state.skill = HydraSkill.EVIL_FIREBALL;
+        state.activeHeadIndex = headIndex;
+        state.recoveryVisualProgress = 0.0F;
+        state.evilFireballCooldown = BossRefactorTwilightForestConfig.HYDRA
+                .evilFireballCooldownTicks.get();
+        lockTarget(hydra, target, state);
+        hydra.hc[headIndex].setTargetEntity(target);
+        enterState(
+                state, HydraActionState.EVIL_FIREBALL_WINDUP,
+                BossRefactorTwilightForestConfig.HYDRA
+                        .evilFireballWindupTicks.get());
+        hydra.playSound(SoundEvents.BLAZE_SHOOT, 2.0F, 0.45F);
+    }
+
     private static void beginRecovery(
             Hydra hydra, HydraCombatState state) {
         state.recoveryVisualProgress = state.skill == HydraSkill.NONE
@@ -300,9 +343,6 @@ public final class HydraCombat {
             : AttackTelegraph.windupProgress(
                 state.actionTicks, state.actionDuration);
         clearHeadTarget(hydra, state.activeHeadIndex);
-        state.pendingFollowUpSkill = HydraSkill.NONE;
-        state.pendingFollowUpHeadIndex = -1;
-        state.followUpAttack = false;
         state.ordinaryAttackCooldown = BossRefactorTwilightForestConfig.HYDRA
                 .ordinaryAttackIntervalTicks.get();
         int recoveryTicks = BossRefactorTwilightForestConfig.HYDRA
@@ -318,9 +358,6 @@ public final class HydraCombat {
         enterState(state, HydraActionState.IDLE, 0);
         state.skill = HydraSkill.NONE;
         state.activeHeadIndex = -1;
-        state.pendingFollowUpSkill = HydraSkill.NONE;
-        state.pendingFollowUpHeadIndex = -1;
-        state.followUpAttack = false;
         state.recoveryVisualProgress = 0.0F;
     }
 
@@ -392,6 +429,11 @@ public final class HydraCombat {
             state.secondPhaseBeamCooldown = BossRefactorTwilightForestConfig
                     .HYDRA.secondPhaseBeamIntervalTicks.get();
         }
+        if (state.secondPhase && !state.secondPhaseHeadsActivated) {
+            access(hydra).bossRefactorTF$activateNumberOfHeads(
+                Math.min(9, countActiveHeads(hydra) + 2));
+            state.secondPhaseHeadsActivated = true;
+        }
     }
 
     private static void tickSecondPhaseBeams(
@@ -401,7 +443,7 @@ public final class HydraCombat {
             return;
         }
         Vec3 center = beamCenter(hydra, state);
-        spawnBeams(
+        spawnTargetedBeams(
                 hydra, state, center,
                 BossRefactorTwilightForestConfig.HYDRA
                         .secondPhaseBeamCount.get(),
@@ -415,21 +457,147 @@ public final class HydraCombat {
                 .secondPhaseBeamIntervalTicks.get();
     }
 
-    private static void spawnBeams(
+        private static void spawnTargetedBeams(
             Hydra hydra, HydraCombatState state, Vec3 center,
             int count, double scatter, double radius, int windupTicks) {
-        ServerLevel level = (ServerLevel) hydra.level();
-        for (int index = 0; index < count; index++) {
+        double verticalRange = BossRefactorTwilightForestConfig.HYDRA
+            .fireVerticalRange.get();
+        AABB bounds = new AABB(
+            center.x - scatter, center.y - verticalRange,
+            center.z - scatter,
+            center.x + scatter, center.y + verticalRange,
+            center.z + scatter);
+        List<LivingEntity> targets = combatTargets(hydra, bounds);
+        LivingEntity primaryTarget = hydra.getTarget();
+        if (isRetainableTarget(hydra, primaryTarget)
+            && !targets.contains(primaryTarget)) {
+            targets.add(primaryTarget);
+        }
+        for (LivingEntity target : targets) {
+            addBeam(
+                hydra, state, target.getX(), target.getZ(), target.getY(),
+                radius, windupTicks);
+        }
+        int extraCount = Math.max(0, count - targets.size());
+        for (int index = 0; index < extraCount; index++) {
+            Vec3 anchor = targets.isEmpty()
+                ? center
+                : targets.get(index % targets.size()).position();
             double angle = hydra.getRandom().nextDouble() * Math.PI * 2.0;
             double distance = Math.sqrt(hydra.getRandom().nextDouble())
                     * scatter;
-            double x = center.x + Math.cos(angle) * distance;
-            double z = center.z + Math.sin(angle) * distance;
-                double y = groundY(hydra, x, z, center.y);
-            state.beams.add(new HydraBeam(
-                    UUID.randomUUID(), x, y, z, radius, windupTicks));
+            addBeam(
+                hydra, state,
+                anchor.x + Math.cos(angle) * distance,
+                anchor.z + Math.sin(angle) * distance,
+                anchor.y, radius, windupTicks);
         }
     }
+
+        private static void spawnScatteredBeams(
+            Hydra hydra, HydraCombatState state, Vec3 center,
+            int count, double scatter, double radius, int windupTicks) {
+        for (int index = 0; index < count; index++) {
+            double angle = hydra.getRandom().nextDouble() * Math.PI * 2.0;
+            double distance = Math.sqrt(hydra.getRandom().nextDouble())
+                * scatter;
+            addBeam(
+                hydra, state,
+                center.x + Math.cos(angle) * distance,
+                center.z + Math.sin(angle) * distance,
+                center.y, radius, windupTicks);
+        }
+        }
+
+        private static void addBeam(
+            Hydra hydra, HydraCombatState state,
+            double x, double z, double preferredY,
+            double radius, int windupTicks) {
+        state.beams.add(new HydraBeam(
+            UUID.randomUUID(), x, groundY(hydra, x, z, preferredY), z,
+            radius, windupTicks));
+        }
+
+        public static void damageEvilFireballAura(
+            HydraEvilFireball fireball, Hydra hydra) {
+        BossRefactorTwilightForestConfig.HydraConfig config =
+            BossRefactorTwilightForestConfig.HYDRA;
+        damageEvilFireArea(
+            fireball, hydra, fireball.position(),
+            config.evilFireballAuraRadius.get(),
+            config.evilFireballAuraDamageMultiplier.get().floatValue());
+        }
+
+        public static void explodeEvilFireball(
+            HydraEvilFireball fireball, Hydra hydra,
+            Vec3 center, boolean phaseTwo) {
+        if (fireball.isRemoved()) {
+            return;
+        }
+        BossRefactorTwilightForestConfig.HydraConfig config =
+            BossRefactorTwilightForestConfig.HYDRA;
+        damageEvilFireArea(
+            fireball, hydra, center,
+            config.evilFireballExplosionRadius.get(),
+            config.evilFireballExplosionDamageMultiplier.get()
+                .floatValue());
+        ServerLevel level = (ServerLevel) hydra.level();
+        level.sendParticles(
+            ParticleTypes.EXPLOSION_EMITTER,
+            center.x, center.y, center.z,
+            1, 0.0, 0.0, 0.0, 0.0);
+        level.playSound(
+            null, center.x, center.y, center.z,
+            SoundEvents.GENERIC_EXPLODE, SoundSource.HOSTILE,
+            4.0F, 0.75F + hydra.getRandom().nextFloat() * 0.15F);
+        fireball.gameEvent(GameEvent.PROJECTILE_LAND);
+        if (phaseTwo) {
+            HydraCombatState state = state(hydra);
+            spawnScatteredBeams(
+                hydra, state, center,
+                config.evilFireballPhaseTwoBeamCount.get(),
+                config.evilFireballPhaseTwoBeamScatter.get(),
+                config.evilFireballPhaseTwoBeamRadius.get(),
+                config.evilFireballPhaseTwoBeamWindupTicks.get());
+        }
+        fireball.discard();
+        }
+
+        private static void damageEvilFireArea(
+            HydraEvilFireball fireball, Hydra hydra,
+            Vec3 center, double radius, float damageMultiplier) {
+        AABB bounds = new AABB(
+            center.x - radius, center.y - radius, center.z - radius,
+            center.x + radius, center.y + radius, center.z + radius);
+        float damage = attackDamage(hydra) * damageMultiplier;
+        int igniteTicks = BossRefactorTwilightForestConfig.HYDRA
+            .evilFireballIgniteTicks.get();
+        DamageSource source = HydraDamageTypes.evilFire(fireball, hydra);
+        for (LivingEntity target : combatTargets(hydra, bounds)) {
+            if (distanceFromPointToAabb(
+                center, target.getBoundingBox()) > radius) {
+            continue;
+            }
+            target.hurt(source, damage);
+            target.setRemainingFireTicks(Math.max(
+                target.getRemainingFireTicks(), igniteTicks));
+        }
+        }
+
+        private static double distanceFromPointToAabb(
+            Vec3 point, AABB bounds) {
+        double deltaX = Math.max(
+            Math.max(bounds.minX - point.x, 0.0),
+            point.x - bounds.maxX);
+        double deltaY = Math.max(
+            Math.max(bounds.minY - point.y, 0.0),
+            point.y - bounds.maxY);
+        double deltaZ = Math.max(
+            Math.max(bounds.minZ - point.z, 0.0),
+            point.z - bounds.maxZ);
+        return Math.sqrt(
+            deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ);
+        }
 
     private static void tickBeams(Hydra hydra, HydraCombatState state) {
         if (state.beams.isEmpty()) {
@@ -472,7 +640,7 @@ public final class HydraCombat {
         float damage = attackDamage(hydra) * damageMultiplier;
         int igniteTicks = BossRefactorTwilightForestConfig.HYDRA
                 .fireIgniteTicks.get();
-        DamageSource source = hydra.damageSources().mobAttack(hydra);
+        DamageSource source = HydraDamageTypes.evilFire(hydra);
         for (LivingEntity target : combatTargets(hydra, bounds)) {
             if (!HydraCombatRules.isInsideCircle(
                     target.getX(), target.getZ(),
@@ -534,8 +702,8 @@ public final class HydraCombat {
             : Mth.clamp(
                 elapsed / (beam.totalWindupTicks - 1.0),
                 0.0, 1.0);
-        double descent = 1.0 - Math.pow(1.0 - progress, 3.0);
-        double frontY = beam.y + height * (1.0 - descent);
+        double rise = 1.0 - Math.pow(1.0 - progress, 3.0);
+        double frontY = beam.y + height * rise;
         double trailLength = Math.min(height * 0.28, 5.0);
         for (int index = 0; index < count; index++) {
             double trail = count <= 1
@@ -543,9 +711,9 @@ public final class HydraCombat {
             double angle = trail * Math.PI * 4.0
                 + progress * Math.PI * 2.0;
             double spiralRadius = beam.radius * (0.18 + trail * 0.3);
-            double particleY = Math.min(
-                beam.y + height,
-                frontY + trail * trailLength);
+            double particleY = Math.max(
+                beam.y,
+                frontY - trail * trailLength);
             level.sendParticles(
                     ParticleTypes.FLAME,
                     beam.x + Math.cos(angle) * spiralRadius,
@@ -572,7 +740,9 @@ public final class HydraCombat {
                 head.setTargetEntity(isRetainableTarget(hydra, target)
                         ? target : null);
             }
-        } else if (state.actionState == HydraActionState.WINDUP
+        } else if ((state.actionState == HydraActionState.WINDUP
+            || state.actionState
+                == HydraActionState.EVIL_FIREBALL_WINDUP)
                 && hasUsableHead(hydra, state.activeHeadIndex)) {
             hydra.hc[state.activeHeadIndex].setTargetEntity(target);
         }
@@ -580,22 +750,14 @@ public final class HydraCombat {
 
     private static void synchronizeVisualState(
             Hydra hydra, HydraCombatState state) {
-        boolean hasVisibleAction = state.actionState
-            != HydraActionState.FOLLOW_UP_DELAY;
-        HydraSkill visibleSkill = hasVisibleAction
-            ? state.skill : HydraSkill.NONE;
-        int visibleHead = hasVisibleAction
-            ? state.activeHeadIndex : -1;
         float progress = state.actionState == HydraActionState.RECOVERY
             ? state.recoveryVisualProgress * (1.0F
                 - AttackTelegraph.windupProgress(
                     state.actionTicks, state.actionDuration))
-            : hasVisibleAction
-                ? AttackTelegraph.windupProgress(
-                    state.actionTicks, state.actionDuration)
-                : 0.0F;
+            : AttackTelegraph.windupProgress(
+                state.actionTicks, state.actionDuration);
         access(hydra).bossRefactorTF$setHydraVisualState(
-                visibleSkill, visibleHead, progress,
+                state.skill, state.activeHeadIndex, progress,
             state.actionState == HydraActionState.RECOVERY,
             state.recoveryVisualProgress,
                 state.lockedX, state.lockedY, state.lockedZ,
@@ -637,7 +799,7 @@ public final class HydraCombat {
                             state.actionTicks, state.actionDuration));
         }
         if (state.actionState != HydraActionState.WINDUP
-                || !state.skill.isOrdinaryMelee()) {
+            || !state.skill.isCustomMelee()) {
             return AttackTelegraph.NONE;
         }
         Vec3 origin = attackOrigin(hydra, state.activeHeadIndex);
@@ -693,19 +855,15 @@ public final class HydraCombat {
         boolean hadCustomState = state.combatInitialized
                 || state.actionState != HydraActionState.IDLE
                 || state.skill != HydraSkill.NONE
-                || state.pendingFollowUpSkill != HydraSkill.NONE
                 || !state.beams.isEmpty();
         if (!hadCustomState) {
             return;
         }
         state.actionState = HydraActionState.IDLE;
         state.skill = HydraSkill.NONE;
-        state.pendingFollowUpSkill = HydraSkill.NONE;
         state.actionTicks = 0;
         state.actionDuration = 0;
         state.activeHeadIndex = -1;
-        state.pendingFollowUpHeadIndex = -1;
-        state.followUpAttack = false;
         state.combatInitialized = false;
         state.recoveryVisualProgress = 0.0F;
         state.beams.clear();
@@ -853,6 +1011,10 @@ public final class HydraCombat {
         return candidates.get(hydra.getRandom().nextInt(candidates.size()));
     }
 
+    private static int countActiveHeads(Hydra hydra) {
+        return activeContainers(hydra).size();
+    }
+
     private static List<HydraHeadContainer> activeContainers(Hydra hydra) {
         List<HydraHeadContainer> active = new ArrayList<>();
         int count = Math.min(hydra.numHeads, hydra.hc.length);
@@ -862,6 +1024,25 @@ public final class HydraCombat {
             }
         }
         return active;
+    }
+
+    private static boolean hasVanillaAttackInProgress(Hydra hydra) {
+        return activeContainers(hydra).stream()
+                .anyMatch(HydraHeadContainer::isAttacking);
+    }
+
+    private static int randomIdleHead(Hydra hydra) {
+        List<Integer> candidates = new ArrayList<>();
+        int count = Math.min(hydra.numHeads, hydra.hc.length);
+        for (int index = 0; index < count; index++) {
+            if (hydra.hc[index].isActive() && hydra.hc[index].isIdle()) {
+                candidates.add(index);
+            }
+        }
+        if (candidates.isEmpty()) {
+            return -1;
+        }
+        return candidates.get(hydra.getRandom().nextInt(candidates.size()));
     }
 
     private static boolean hasUsableHead(Hydra hydra, int index) {
@@ -882,6 +1063,8 @@ public final class HydraCombat {
                     0, state.ordinaryAttackCooldown - 1);
         }
         state.fireLordCooldown = Math.max(0, state.fireLordCooldown - 1);
+        state.evilFireballCooldown = Math.max(
+            0, state.evilFireballCooldown - 1);
         if (state.secondPhase) {
             state.secondPhaseBeamCooldown = Math.max(
                     0, state.secondPhaseBeamCooldown - 1);
@@ -898,8 +1081,6 @@ public final class HydraCombat {
 
     private static int windupTicks(HydraSkill skill) {
         return switch (skill) {
-            case BITE -> BossRefactorTwilightForestConfig.HYDRA
-                    .biteWindupTicks.get();
             case SWEEP -> BossRefactorTwilightForestConfig.HYDRA
                     .sweepWindupTicks.get();
             case SLAM -> BossRefactorTwilightForestConfig.HYDRA
@@ -910,8 +1091,6 @@ public final class HydraCombat {
 
     private static double attackRadius(HydraSkill skill) {
         return switch (skill) {
-            case BITE -> BossRefactorTwilightForestConfig.HYDRA
-                    .biteRange.get();
             case SWEEP -> BossRefactorTwilightForestConfig.HYDRA
                     .sweepRadius.get();
             case SLAM -> BossRefactorTwilightForestConfig.HYDRA
@@ -922,8 +1101,6 @@ public final class HydraCombat {
 
     private static double halfAngle(HydraSkill skill) {
         return switch (skill) {
-            case BITE -> BossRefactorTwilightForestConfig.HYDRA
-                    .biteHalfAngleDegrees.get();
             case SWEEP -> BossRefactorTwilightForestConfig.HYDRA
                     .sweepHalfAngleDegrees.get();
             default -> 180.0;
@@ -932,8 +1109,6 @@ public final class HydraCombat {
 
     private static float damageMultiplier(HydraSkill skill) {
         return switch (skill) {
-            case BITE -> BossRefactorTwilightForestConfig.HYDRA
-                    .biteDamageMultiplier.get().floatValue();
             case SWEEP -> BossRefactorTwilightForestConfig.HYDRA
                     .sweepDamageMultiplier.get().floatValue();
             case SLAM -> BossRefactorTwilightForestConfig.HYDRA
@@ -950,7 +1125,11 @@ public final class HydraCombat {
     }
 
     private static float attackDamage(Hydra hydra) {
-        return (float) hydra.getAttributeValue(Attributes.ATTACK_DAMAGE);
+        return HydraCombatRules.phaseDamage(
+                (float) hydra.getAttributeValue(Attributes.ATTACK_DAMAGE),
+                state(hydra).secondPhase,
+                BossRefactorTwilightForestConfig.HYDRA
+                        .secondPhaseDamageMultiplier.get().floatValue());
     }
 
     private static HydraCombatState state(Hydra hydra) {

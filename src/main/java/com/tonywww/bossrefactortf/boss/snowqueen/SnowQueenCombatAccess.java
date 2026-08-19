@@ -25,6 +25,14 @@ public interface SnowQueenCombatAccess {
 
     void bossRefactorTF$setSnowQueenShieldVerticalOffset(double offset);
 
+    double bossRefactorTF$getSnowQueenShieldWaveAmplitude();
+
+    void bossRefactorTF$setSnowQueenShieldWaveAmplitude(double amplitude);
+
+    double bossRefactorTF$getSnowQueenShieldWaveSpeed();
+
+    void bossRefactorTF$setSnowQueenShieldWaveSpeed(double speed);
+
     boolean bossRefactorTF$isSnowQueenSecondPhase();
 
     void bossRefactorTF$setSnowQueenSecondPhase(boolean secondPhase);

@@ -71,6 +71,8 @@ public final class HydraHeadAnimation {
             case SWEEP -> applySweep(head, mouth, progress, blend);
             case SLAM -> applySlam(head, mouth, progress, blend);
             case FIRE_LORD -> applyFireLord(head, mouth, progress, blend);
+                case EVIL_FIREBALL -> applyEvilFireball(
+                    head, mouth, progress, blend);
             default -> {
             }
         }
@@ -88,7 +90,9 @@ public final class HydraHeadAnimation {
     private static boolean animatesHead(
             HydraSkill skill, int headIndex, int visibleHeadIndex) {
         return skill == HydraSkill.FIRE_LORD
-                || skill.isOrdinaryMelee() && headIndex == visibleHeadIndex;
+            || (skill.isCustomMelee()
+                || skill == HydraSkill.EVIL_FIREBALL)
+            && headIndex == visibleHeadIndex;
     }
 
     private static float interpolatedProgress(
@@ -183,10 +187,20 @@ public final class HydraHeadAnimation {
         mouth.xRot += pose * (0.92F + pulse) * blend;
     }
 
+    private static void applyEvilFireball(
+            ModelPart head, ModelPart mouth, float progress, float blend) {
+        float pose = smoothStep(0.0F, 0.28F, progress);
+        float pulse = 0.06F * Mth.sin(progress * Mth.PI * 8.0F);
+        head.xRot += pose * 0.18F * blend;
+        head.z -= pose * 2.5F * blend;
+        mouth.xRot += pose * (1.05F + pulse) * blend;
+    }
+
     private static float aimWeight(HydraSkill skill, float progress) {
         return switch (skill) {
             case BITE -> smoothStep(0.25F, 0.55F, progress);
             case FIRE_LORD -> smoothStep(0.0F, 0.18F, progress);
+            case EVIL_FIREBALL -> smoothStep(0.0F, 0.28F, progress);
             default -> 0.0F;
         };
     }

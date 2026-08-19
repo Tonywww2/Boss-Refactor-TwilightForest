@@ -142,10 +142,13 @@ public final class MinoshroomCombat {
         if (state.stateTicks < state.stateDuration) {
             return;
         }
-        if (MinoshroomCombatRules.shouldUseStomp(
+        if (MinoshroomCombatRules.shouldSelectStomp(
                 horizontalDistance(minoshroom, target),
                 BossRefactorTwilightForestConfig.MINOSHROOM
-                        .stompRadius.get())) {
+                .stompRadius.get(),
+            BossRefactorTwilightForestConfig.MINOSHROOM
+                .stompSelectionProbability.get(),
+            minoshroom.getRandom().nextDouble())) {
             beginStomp(minoshroom, state);
         } else {
             state.sweepRoundsCompleted = 0;
@@ -447,8 +450,10 @@ public final class MinoshroomCombat {
                 config.blockDestructionHorizontalRange.get(),
                 config.blockDestructionVerticalRange.get(),
                 config.blockDestructionHorizontalRange.get());
+        int minimumBlockY = MinoshroomCombatRules.blockDestructionMinimumY(
+                minoshroom.getBoundingBox().minY);
         for (BlockPos position : BlockPos.betweenClosed(
-                BlockPos.containing(bounds.minX, bounds.minY, bounds.minZ),
+                BlockPos.containing(bounds.minX, minimumBlockY, bounds.minZ),
                 BlockPos.containing(bounds.maxX, bounds.maxY, bounds.maxZ))) {
             BlockState blockState = minoshroom.level().getBlockState(position);
             if (blockState.isAir()

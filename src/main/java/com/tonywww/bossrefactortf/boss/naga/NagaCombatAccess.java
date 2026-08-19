@@ -1,9 +1,15 @@
 package com.tonywww.bossrefactortf.boss.naga;
 
 import com.tonywww.bossrefactortf.telegraph.AttackTelegraph;
+import twilightforest.entity.ai.goal.NagaMovementPattern;
+
+import javax.annotation.Nullable;
 
 public interface NagaCombatAccess {
     NagaCombatState bossRefactorTF$getNagaCombatState();
+
+    @Nullable
+    NagaMovementPattern bossRefactorTF$getMovementPattern();
 
     NagaBodyState bossRefactorTF$getNagaBodyState();
 

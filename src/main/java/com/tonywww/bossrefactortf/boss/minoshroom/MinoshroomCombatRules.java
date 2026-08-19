@@ -59,10 +59,22 @@ public final class MinoshroomCombatRules {
         return Math.max(0.0, targetDistance) <= Math.max(0.0, stompRadius);
     }
 
+    public static boolean shouldSelectStomp(
+            double targetDistance, double stompRadius,
+            double selectionProbability, double roll) {
+        return shouldUseStomp(targetDistance, stompRadius)
+                && clamp(roll, 0.0, Math.nextDown(1.0))
+                        < clamp(selectionProbability, 0.0, 1.0);
+    }
+
     public static boolean shouldDamageWithStomp(
             boolean targetOnGround, double targetDistance,
             double stompRadius) {
         return targetOnGround && shouldUseStomp(targetDistance, stompRadius);
+    }
+
+    public static int blockDestructionMinimumY(double feetY) {
+        return (int) Math.ceil(feetY - 1.0E-5);
     }
 
     public static String stompDamageTypePath() {

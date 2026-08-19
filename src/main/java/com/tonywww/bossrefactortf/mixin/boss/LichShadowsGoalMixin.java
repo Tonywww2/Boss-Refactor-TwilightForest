@@ -24,7 +24,7 @@ public abstract class LichShadowsGoalMixin {
             remap = false)
     private void bossRefactorTF$disableForSecondPhaseMaster(
             CallbackInfoReturnable<Boolean> callback) {
-        if (LichCombat.shouldSuppressVanillaPhaseLogic(lich)) {
+        if (LichCombat.shouldSuppressVanillaShadowsGoal(lich)) {
             callback.setReturnValue(false);
         }
     }

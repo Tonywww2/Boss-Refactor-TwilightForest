@@ -29,15 +29,18 @@ Alpha Yeti timings, ranges, knockback, falling-ice density, and the random
 15-35 tick post-skill cruise are configured under `alpha_yeti` in
 `config/bossrefactortf-common.toml`.
 
-The Naga cycles between a pounce that follows an undefended impact with a tail
-sweep, standalone tail sweeps, and a moving venom projectile that leaves a
-seven-second poison cloud. A shield fully absorbs the initial venom hit and
-applies its cooldown, but the cloud lands 0.75 blocks outside the shield along
-the incoming path; SlashBlade parries still cancel the projectile without a
-cloud. Below half health, phase two multiplies attack damage and movement speed
-by 1.2, creates a fire snake with a virtual flame trail and a pronounced red
-tint across the Naga and all of its segments, and grants one stun immunity that
-recovers every 15 seconds. All values are configured under `naga` in
+The Naga cycles between Twilight Forest's original charge, a custom pounce,
+and a moving venom projectile that leaves a seven-second poison cloud. Charges
+and pounces can be shield-blocked or SlashBlade-parried. A shield fully absorbs
+the initial venom hit and applies its cooldown, but the cloud lands 0.75 blocks
+outside the shield along the incoming path; SlashBlade parries still cancel the
+projectile without a cloud. Below half health, phase two multiplies attack
+damage and movement speed by 1.2 and immediately starts a 300-tick fire snake.
+After each fire snake ends, another starts following a configurable 600-tick
+cooldown. Its flame points last 200 ticks, deal 0.3 attack damage every 20 ticks,
+ignite for 100 ticks, and retain the pronounced red tint across the Naga and all
+segments. Phase two also grants one stun immunity that recovers every 15
+seconds. All values are configured under `naga` in
 `config/bossrefactortf-common.toml`.
 
 The Minoshroom continuously breaks eligible nearby blocks while mob griefing is
@@ -53,24 +56,48 @@ timings, ranges, damage multipliers, block breaking, phase multipliers, and tint
 values are configured under `minoshroom` in
 `config/bossrefactortf-common.toml`.
 
-The Snow Queen cruises between repeated slams and shattered ice rain, with an
-eight-shield first phase that transitions at 50% health to four shields and
-stable ice cores. Linked summons render a blue connection to their living owner;
-their deaths queue the configured teleport and burst response. All Snow Queen
-mechanics and configuration values, including link visuals, are under
-`snow_queen` in `config/bossrefactortf-common.toml`.
+The Snow Queen retains every original skill, including its original SUMMON,
+hover, drop, and beam behavior. During each SUMMON phase it additionally creates
+2-4 shattered ice cores, or 3-4 in phase two; they dash in sequence, apply seven
+seconds of Frosty, and retain their original death explosion without breaking
+blocks. Six ice shields at different wave heights orbit with 100% collision
+damage, shield blocking, and SlashBlade parries. Linked owned summons render
+blue lines, gain 30% damage while the queen takes 30% less, and their deaths
+trigger a delayed teleport with a 150% burst. At 50% health or lower, the Snow
+Queen gains 20% damage and speed and creates one falling-ice attack every eight
+seconds. The Snow Queen's block-breaking routine is disabled so its skills
+cannot destroy the arena floor. All Snow Queen mechanics and link visuals are
+configured under `snow_queen` in `config/bossrefactortf-common.toml`.
 
 The Lich is rebuilt as a two-phase fight. Its first phase retains the original
 ranged attacks and initial shield but no longer creates the original automatic
 shadow clones. Breaking the last initial shield starts phase two and grants five
 new shield layers, each preventing 10% incoming damage. Phase-two melee attacks
-add 20% attack damage as magic damage. The Lich can consume one shield layer to
-empower a telegraphed rectangular shield bash from 150% to 225% attack damage.
+add 20% attack damage as magic damage. In either phase, the Lich can consume one
+shield layer to empower a telegraphed rectangular shield bash from 150% to 225%
+attack damage.
 Shield blocks and SlashBlade parries prevent that damage but not its knockback,
 and leave the Lich stunned for 40 ticks. Phase two can also summon one invulnerable
 ranged clone; after 15 seconds it performs one shield bash and disappears. Lich
 timings, ranges, multipliers, knockback, shields, and clone lifetime are configured
 under `lich` in `config/bossrefactortf-common.toml`.
+
+The Hydra now constructs nine real multipart head containers, including every
+head and five neck segments in the spawn packet. Three heads begin active; the
+first transition below 50% health grows two more through the original head
+lifecycle, and all custom phase-two damage is multiplied by 1.2. Ordinary
+rotation keeps bite, sweep, slam, and one-head Twilight Forest flame breath.
+The original bite, flame-breath, and mortar scheduling, state chains, targeting,
+damage, and ignition remain owned by The Twilight Forest. Custom head sweeps and
+slams wait for those original head attacks to finish. A separate evil
+fireball locks its direction after a 40-tick windup, moves at 0.25 blocks per
+tick, pulses 0.6 attack damage every 20 ticks in a three-block radius, and
+explodes for 1.5 attack damage in a five-block radius without breaking blocks.
+Phase-two explosions create three locked flame beams nearby. Fire Lord opens
+all active heads for 200 ticks and deals `attack * (0.5 + heads * 0.2)` every
+20 ticks. Flame breath, evil fire, Fire Lord, and beams bypass shields; only the
+three ordinary melee attacks remain shield-blockable and parryable. All values
+are configured under `hydra` in `config/bossrefactortf-common.toml`.
 
 The Ur-Ghast fight alternates between 20-second patrol and offensive modes from
 the start. The first time health falls below 50%, it immediately resets to
@@ -107,6 +134,8 @@ Focused dependency-free combat checks:
 .\gradlew.bat urGhastCombatSelfTest --console=plain
 .\gradlew.bat nagaCombatSelfTest --console=plain
 .\gradlew.bat lichCombatSelfTest --console=plain
+.\gradlew.bat hydraCombatSelfTest --console=plain
+.\gradlew.bat verifyHydraNineHeadContract --console=plain
 ```
 
 The local SenDimS JAR is available to compile the optional compatibility layer,

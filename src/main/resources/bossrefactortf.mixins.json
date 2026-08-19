@@ -20,6 +20,7 @@
     "boss.LichShadowsGoalMixin",
     "boss.MinoshroomMixin",
     "boss.NagaMixin",
+    "boss.NagaMovementPatternAccessMixin",
     "boss.NoClipMoveControlMixin",
     "boss.PhantomAttackGoalsMixin",
     "boss.PhantomThrowWeaponGoalAccessMixin",
@@ -31,11 +32,13 @@
     "boss.UrGhastMixin"
   ],
   "client": [
+    "client.HydraHeadRendererMixin",
     "client.HydraHeadModelMixin",
     "client.LargeFireballRendererMixin",
     "client.NagaFireSnakeRendererMixin",
     "client.NagaSegmentFireSnakeRendererMixin",
-    "client.NewHydraHeadModelMixin"
+    "client.NewHydraHeadModelMixin",
+    "client.NewHydraHeadRendererMixin"
   ],
   "injectors": {
     "defaultRequire": 1

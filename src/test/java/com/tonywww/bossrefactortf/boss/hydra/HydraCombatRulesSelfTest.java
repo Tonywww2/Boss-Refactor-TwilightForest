@@ -3,8 +3,6 @@ package com.tonywww.bossrefactortf.boss.hydra;
 import com.tonywww.bossrefactortf.config.BossRefactorTwilightForestConfig;
 import net.minecraft.nbt.CompoundTag;
 
-import java.util.HashSet;
-import java.util.Set;
 import java.util.UUID;
 
 public final class HydraCombatRulesSelfTest {
@@ -16,25 +14,31 @@ public final class HydraCombatRulesSelfTest {
                 "exactly half health must remain in phase one");
         check(HydraCombatRules.isSecondPhase(49.99F, 100.0F, 0.5),
                 "health strictly below half must enter phase two");
+        checkClose(HydraCombatRules.phaseDamage(16.0F, false, 1.2F),
+                16.0, "phase-one custom damage must remain unchanged");
+        checkClose(HydraCombatRules.phaseDamage(16.0F, true, 1.2F),
+                19.2, "phase-two custom damage must use the configured multiplier");
+        checkClose(HydraCombatRules.fireLordMultiplier(0.5F, 0.2F, 7),
+                1.9, "Fire Lord must add 0.2 per active head");
+        checkClose(HydraCombatRules.fireLordMultiplier(0.5F, 0.2F, 9),
+                2.3, "Fire Lord must include both phase-two heads");
 
-        Set<HydraSkill> ordinarySkills = new HashSet<>();
+        check(HydraCombatRules.customMeleeSkill(0) == HydraSkill.SWEEP
+                        && HydraCombatRules.customMeleeSkill(1)
+                        == HydraSkill.SLAM,
+                "custom melee selection must alternate sweep and slam");
         for (int value = -100; value <= 100; value++) {
-            HydraSkill skill = HydraCombatRules.ordinarySkill(value);
-            check(skill == HydraCombatRules.ordinarySkill(value),
-                    "ordinary skill mapping must be stable");
-            check(skill.isOrdinaryMelee(),
-                    "ordinary skill mapping must only return melee skills");
-            ordinarySkills.add(skill);
+            HydraSkill skill = HydraCombatRules.customMeleeSkill(value);
+            check(skill == HydraCombatRules.customMeleeSkill(value),
+                    "custom melee mapping must be stable");
+            check(skill.isCustomMelee(),
+                    "custom melee mapping must only return sweep or slam");
         }
-        check(HydraCombatRules.ordinarySkill(Integer.MIN_VALUE)
-                        .isOrdinaryMelee()
-                        && HydraCombatRules.ordinarySkill(Integer.MAX_VALUE)
-                        .isOrdinaryMelee(),
-                "ordinary skill mapping must support all integer values");
-        check(ordinarySkills.contains(HydraSkill.BITE)
-                        && ordinarySkills.contains(HydraSkill.SWEEP)
-                        && ordinarySkills.contains(HydraSkill.SLAM),
-                "all ordinary melee skills must be reachable");
+        check(HydraCombatRules.customMeleeSkill(Integer.MIN_VALUE)
+                        .isCustomMelee()
+                        && HydraCombatRules.customMeleeSkill(Integer.MAX_VALUE)
+                        .isCustomMelee(),
+                "custom melee mapping must support all integer values");
 
         checkClose(HydraCombatRules.expandingRadius(0, 10, 20.0), 0.0,
                 "Fire Lord radius must start at zero");
@@ -72,14 +76,20 @@ public final class HydraCombatRulesSelfTest {
                         0.0, 0.0, 6.0, 90.0),
                 "the attack origin must remain inside an arc");
 
-        check(HydraSkill.byId(HydraSkill.SLAM.ordinal()) == HydraSkill.SLAM,
-                "valid Hydra skill ids must resolve normally");
+        for (HydraSkill skill : HydraSkill.values()) {
+            check(HydraSkill.byId(skill.ordinal()) == skill,
+                    "every Hydra skill id must resolve normally");
+        }
         check(HydraSkill.byId(-1) == HydraSkill.NONE
                         && HydraSkill.byId(999) == HydraSkill.NONE,
                 "invalid Hydra skill ids must fall back to NONE");
-        check(HydraActionState.byId(HydraActionState.RECOVERY.ordinal())
-                        == HydraActionState.RECOVERY,
-                "valid Hydra action ids must resolve normally");
+        for (HydraActionState actionState : HydraActionState.values()) {
+            check(HydraActionState.byId(actionState.serializedId())
+                            == actionState,
+                    "every Hydra action id must resolve normally");
+        }
+        check(HydraActionState.byId(2) == HydraActionState.RECOVERY,
+                "legacy follow-up delay ids must recover safely");
         check(HydraActionState.byId(-1) == HydraActionState.IDLE
                         && HydraActionState.byId(999) == HydraActionState.IDLE,
                 "invalid Hydra action ids must fall back to IDLE");
@@ -96,6 +106,8 @@ public final class HydraCombatRulesSelfTest {
                 "Hydra combat takeover must default to enabled");
         checkClose(config.baseAttackDamage.getDefault(), 16.0,
                 "Hydra base attack damage must default to sixteen");
+        checkClose(config.secondPhaseDamageMultiplier.getDefault(), 1.2,
+                "phase-two custom damage must default to 1.2x");
         check(config.ordinaryAttackIntervalTicks.getDefault() == 40,
                 "ordinary attacks must default to a forty-tick interval");
         check(config.biteWindupTicks.getDefault() == 20
@@ -111,9 +123,25 @@ public final class HydraCombatRulesSelfTest {
                         && config.slamRadius.getDefault() == 5.0
                         && config.slamDamageMultiplier.getDefault() == 1.5,
                 "slam defaults must remain 40 ticks, 5 range, and 1.5x damage");
-        check(config.recoveryTicks.getDefault() == 20
-                        && config.followUpDelayTicks.getDefault() == 20,
-                "recovery and follow-up delay must default to twenty ticks");
+        check(config.recoveryTicks.getDefault() == 20,
+                "recovery must default to twenty ticks");
+        check(config.evilFireballWindupTicks.getDefault() == 40
+                        && config.evilFireballCooldownTicks.getDefault() == 200
+                        && config.evilFireballSpeed.getDefault() == 0.25
+                        && config.evilFireballVisualScale.getDefault() == 4.0
+                        && config.evilFireballLifetimeTicks.getDefault() == 200
+                        && config.evilFireballIgniteTicks.getDefault() == 100,
+                "evil fireball cadence, speed, scale, and lifetime defaults must remain stable");
+        check(config.evilFireballAuraIntervalTicks.getDefault() == 20
+                        && config.evilFireballAuraRadius.getDefault() == 3.0
+                        && config.evilFireballAuraDamageMultiplier.getDefault() == 0.6
+                        && config.evilFireballExplosionRadius.getDefault() == 5.0
+                        && config.evilFireballExplosionDamageMultiplier.getDefault() == 1.5
+                        && config.evilFireballPhaseTwoBeamCount.getDefault() == 3
+                        && config.evilFireballPhaseTwoBeamScatter.getDefault() == 6.0
+                        && config.evilFireballPhaseTwoBeamRadius.getDefault() == 2.0
+                        && config.evilFireballPhaseTwoBeamWindupTicks.getDefault() == 20,
+                "evil fireball aura and explosion defaults must remain stable");
         check(config.fireLordInitialDelayTicks.getDefault() == 200
                         && config.fireLordCooldownTicks.getDefault() == 600
                         && config.fireLordDurationTicks.getDefault() == 200
@@ -121,8 +149,13 @@ public final class HydraCombatRulesSelfTest {
                 "Fire Lord cadence must remain 200 initial, 600 cooldown, 200 duration, and radius 20");
         check(config.fireLordDamageIntervalTicks.getDefault() == 20
                         && config.fireLordDamageMultiplier.getDefault() == 0.5
+                        && config.fireLordDamagePerHead.getDefault() == 0.2
                         && config.fireIgniteTicks.getDefault() == 100,
-                "Fire Lord damage must remain every 20 ticks at 0.5x with 100 ignite ticks");
+                "Fire Lord damage must retain its interval, head scaling, and ignition defaults");
+        checkClose(HydraCombatRules.fireLordMultiplier(
+                        config.fireLordDamageMultiplier.getDefault().floatValue(),
+                        config.fireLordDamagePerHead.getDefault().floatValue(), 9),
+                2.3, "default Fire Lord multiplier must scale through nine heads");
         check(config.fireLordBeamIntervalTicks.getDefault() == 20
                         && config.fireLordBeamCount.getDefault() == 2
                         && config.fireLordBeamScatter.getDefault() == 14.0
@@ -150,19 +183,18 @@ public final class HydraCombatRulesSelfTest {
         UUID firstId = UUID.fromString("11111111-2222-3333-4444-555555555555");
         UUID secondId = UUID.fromString("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
         HydraCombatState savedState = new HydraCombatState();
-        savedState.actionState = HydraActionState.FOLLOW_UP_DELAY;
-        savedState.skill = HydraSkill.SWEEP;
-        savedState.pendingFollowUpSkill = HydraSkill.SLAM;
+        savedState.actionState = HydraActionState.EVIL_FIREBALL_WINDUP;
+        savedState.skill = HydraSkill.EVIL_FIREBALL;
         savedState.actionTicks = 7;
         savedState.actionDuration = 20;
         savedState.activeHeadIndex = 2;
-        savedState.pendingFollowUpHeadIndex = 5;
         savedState.ordinaryAttackCooldown = 40;
+        savedState.evilFireballCooldown = 200;
         savedState.fireLordCooldown = 600;
         savedState.secondPhaseBeamCooldown = 160;
         savedState.recoveryVisualProgress = 0.75F;
-        savedState.followUpAttack = true;
         savedState.secondPhase = true;
+        savedState.secondPhaseHeadsActivated = true;
         savedState.combatInitialized = true;
         savedState.lockedX = 10.5;
         savedState.lockedY = 64.0;
@@ -177,23 +209,30 @@ public final class HydraCombatRulesSelfTest {
         savedState.beams.add(firstBeam);
         savedState.beams.add(secondBeam);
 
+        CompoundTag savedTag = savedState.save();
+        check(savedTag.contains("EvilFireballCooldown")
+                        && savedTag.contains("SecondPhaseHeadsActivated"),
+                "evil-fireball and phase-two-head state must be persisted");
+        check(!savedTag.contains("FollowUp")
+                        && !savedTag.contains("PendingFollowUp"),
+                "removed Hydra follow-up state must not be written to NBT");
         HydraCombatState loadedState = new HydraCombatState();
-        loadedState.load(savedState.save());
-        check(loadedState.actionState == HydraActionState.FOLLOW_UP_DELAY
-                        && loadedState.skill == HydraSkill.SWEEP
-                        && loadedState.pendingFollowUpSkill == HydraSkill.SLAM,
-                "action and pending follow-up skills must survive an NBT round-trip");
+        loadedState.load(savedTag);
+        check(loadedState.actionState == HydraActionState.EVIL_FIREBALL_WINDUP
+                        && loadedState.skill == HydraSkill.EVIL_FIREBALL,
+                "action and skill must survive an NBT round-trip");
         check(loadedState.actionTicks == 7 && loadedState.actionDuration == 20
-                        && loadedState.activeHeadIndex == 2
-                        && loadedState.pendingFollowUpHeadIndex == 5,
-                "action timing and head indices must survive an NBT round-trip");
+                        && loadedState.activeHeadIndex == 2,
+                "action timing and head index must survive an NBT round-trip");
         check(loadedState.ordinaryAttackCooldown == 40
+                        && loadedState.evilFireballCooldown == 200
                         && loadedState.fireLordCooldown == 600
                         && loadedState.secondPhaseBeamCooldown == 160,
                 "all Hydra cooldowns must survive an NBT round-trip");
         checkClose(loadedState.recoveryVisualProgress, 0.75,
                 "recovery progress must survive an NBT round-trip");
-        check(loadedState.followUpAttack && loadedState.secondPhase
+        check(loadedState.secondPhase
+                        && loadedState.secondPhaseHeadsActivated
                         && loadedState.combatInitialized,
                 "phase and combat flags must survive an NBT round-trip");
         checkClose(loadedState.lockedX, 10.5,

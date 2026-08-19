@@ -3,7 +3,10 @@ package com.tonywww.bossrefactortf.mixin.boss;
 import com.tonywww.bossrefactortf.boss.knightphantom.KnightPhantomCombat;
 import com.tonywww.bossrefactortf.boss.knightphantom.KnightPhantomCombatAccess;
 import com.tonywww.bossrefactortf.boss.knightphantom.KnightPhantomCombatRules;
+import com.tonywww.bossrefactortf.boss.snowqueen.SnowQueenCombat;
+import com.tonywww.bossrefactortf.boss.snowqueen.SnowQueenCombatAccess;
 import com.tonywww.bossrefactortf.boss.urghast.UrGhastCombat;
+import com.tonywww.bossrefactortf.config.BossRefactorTwilightForestConfig;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.control.MoveControl;
@@ -17,6 +20,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import twilightforest.entity.ai.control.NoClipMoveControl;
 import twilightforest.entity.boss.KnightPhantom;
+import twilightforest.entity.boss.SnowQueen;
 import twilightforest.entity.boss.UrGhast;
 
 @Mixin(value = NoClipMoveControl.class, remap = false)
@@ -35,6 +39,22 @@ public abstract class NoClipMoveControlMixin extends MoveControl {
             cancellable = true,
             remap = false)
     private void bossRefactorTF$holdDuringChargeWindup(CallbackInfo callback) {
+        if (parentEntity instanceof SnowQueen queen
+            && SnowQueenCombat.customCombatActive(queen)
+            && queen.getCurrentPhase() != SnowQueen.Phase.DROP
+            && operation == Operation.MOVE_TO
+            && queen.getTarget() != null) {
+            wantedY = queen.getTarget().getY()
+                + BossRefactorTwilightForestConfig.SNOW_QUEEN
+                    .chaseHeightOffset.get();
+            speedModifier = BossRefactorTwilightForestConfig.SNOW_QUEEN
+                .chaseSpeedMultiplier.get();
+                if (queen instanceof SnowQueenCombatAccess access
+                    && access.bossRefactorTF$isSnowQueenSecondPhase()) {
+                speedModifier *= BossRefactorTwilightForestConfig.SNOW_QUEEN
+                    .phaseTwoSpeedMultiplier.get();
+                }
+        }
         if (parentEntity instanceof UrGhast ghast
                 && UrGhastCombat.shouldHoldPosition(ghast)) {
             operation = Operation.WAIT;

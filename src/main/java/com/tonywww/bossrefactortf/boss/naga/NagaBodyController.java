@@ -17,8 +17,7 @@ public final class NagaBodyController {
 
     public static void tick(
             Naga naga, NagaSegment[] segments, NagaBodyState state,
-            NagaBodyPose pose, float poseProgress,
-            double lockedDirectionX, double lockedDirectionZ) {
+            NagaBodyPose pose) {
         for (NagaSegment segment : segments) {
             if (segment != null) {
                 segment.tick();
@@ -60,31 +59,6 @@ public final class NagaBodyController {
                 state.fixedRotations = currentRotations(segments);
             }
             targets = state.fixedPositions;
-        } else if (pose == NagaBodyPose.TAIL_WINDUP
-                || pose == NagaBodyPose.TAIL_STRIKE) {
-            double curveDegrees = BossRefactorTwilightForestConfig.NAGA
-                .bodyTailCurveDegrees.get();
-            Vec3[] startTargets = curvedTailTargets(
-                    naga.position(), trailTargets, segmentSpacing,
-                lockedDirectionX, lockedDirectionZ, curveDegrees);
-            if (pose == NagaBodyPose.TAIL_WINDUP) {
-            targets = constrainSpacing(naga.position(), lerpTargets(
-                trailTargets, startTargets, poseProgress),
-                segmentSpacing);
-            } else {
-            Vec3[] frontTargets = straightTailTargets(
-                naga.position(), trailTargets, segmentSpacing,
-                lockedDirectionX, lockedDirectionZ);
-            Vec3[] endTargets = curvedTailTargets(
-                naga.position(), trailTargets, segmentSpacing,
-                lockedDirectionX, lockedDirectionZ, -curveDegrees);
-            targets = constrainSpacing(naga.position(), weightedTargets(
-                startTargets, frontTargets, endTargets,
-                NagaBodyRules.tailPoseWeights(poseProgress)),
-                segmentSpacing);
-            }
-            state.blendTicksRemaining = 0;
-            state.blendStartPositions = null;
         } else {
             targets = blendTrailTargets(state, trailTargets);
         }
@@ -163,48 +137,6 @@ public final class NagaBodyController {
         return targets;
     }
 
-    private static Vec3[] curvedTailTargets(
-            Vec3 head, Vec3[] trailTargets, double segmentSpacing,
-            double directionX, double directionZ, double bendDegrees) {
-        Vec3 forward = new Vec3(directionX, 0.0, directionZ);
-        if (forward.lengthSqr() < EPSILON) {
-            forward = new Vec3(0.0, 0.0, 1.0);
-        }
-        forward = forward.normalize();
-        double forwardAngle = Math.atan2(forward.z, forward.x);
-        Vec3[] targets = new Vec3[trailTargets.length];
-        Vec3 previous = head;
-        double previousTrailY = head.y;
-        for (int index = 0; index < targets.length; index++) {
-            double alongBody = (double) (index + 1) / targets.length;
-            double angle = forwardAngle + Math.PI
-                    + Math.toRadians(bendDegrees) * alongBody;
-            double targetY = previous.y
-                    + trailTargets[index].y - previousTrailY;
-            targets[index] = new Vec3(
-                    previous.x + Math.cos(angle) * segmentSpacing,
-                    targetY,
-                    previous.z + Math.sin(angle) * segmentSpacing);
-            previous = targets[index];
-            previousTrailY = trailTargets[index].y;
-        }
-        return targets;
-    }
-
-    private static Vec3[] straightTailTargets(
-            Vec3 head, Vec3[] trailTargets, double segmentSpacing,
-            double directionX, double directionZ) {
-        Vec3 forward = horizontalDirection(directionX, directionZ);
-        Vec3[] targets = new Vec3[trailTargets.length];
-        for (int index = 0; index < targets.length; index++) {
-            targets[index] = head.add(forward.scale(
-                    segmentSpacing * (index + 1))).multiply(
-                            1.0, 0.0, 1.0).add(
-                                    0.0, trailTargets[index].y, 0.0);
-        }
-        return targets;
-    }
-
     private static Vec3[] blendTrailTargets(
             NagaBodyState state, Vec3[] trailTargets) {
         if (state.blendTicksRemaining <= 0
@@ -225,53 +157,6 @@ public final class NagaBodyController {
         }
         state.blendTicksRemaining--;
         return targets;
-    }
-
-    private static Vec3[] lerpTargets(
-            Vec3[] start, Vec3[] end, double progress) {
-        Vec3[] targets = new Vec3[start.length];
-        double clampedProgress = Mth.clamp(progress, 0.0, 1.0);
-        for (int index = 0; index < targets.length; index++) {
-            targets[index] = start[index].lerp(end[index], clampedProgress);
-        }
-        return targets;
-    }
-
-    private static Vec3[] weightedTargets(
-            Vec3[] start, Vec3[] front, Vec3[] end,
-            NagaBodyRules.TailPoseWeights weights) {
-        Vec3[] targets = new Vec3[start.length];
-        for (int index = 0; index < targets.length; index++) {
-            targets[index] = start[index].scale(weights.start())
-                    .add(front[index].scale(weights.front()))
-                    .add(end[index].scale(weights.end()));
-        }
-        return targets;
-    }
-
-    private static Vec3[] constrainSpacing(
-            Vec3 head, Vec3[] targets, double segmentSpacing) {
-        Vec3 previous = head;
-        for (int index = 0; index < targets.length; index++) {
-            Vec3 offset = targets[index].subtract(previous);
-            if (offset.lengthSqr() < EPSILON) {
-                offset = index == 0
-                        ? new Vec3(0.0, 0.0, 1.0)
-                        : previous.subtract(targets[index - 1]);
-            }
-            targets[index] = previous.add(
-                    offset.normalize().scale(segmentSpacing));
-            previous = targets[index];
-        }
-        return targets;
-    }
-
-    private static Vec3 horizontalDirection(
-            double directionX, double directionZ) {
-        Vec3 direction = new Vec3(directionX, 0.0, directionZ);
-        return direction.lengthSqr() < EPSILON
-                ? new Vec3(0.0, 0.0, 1.0)
-                : direction.normalize();
     }
 
     private static void applyTargets(

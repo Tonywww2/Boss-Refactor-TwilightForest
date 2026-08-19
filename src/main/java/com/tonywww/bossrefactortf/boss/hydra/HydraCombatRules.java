@@ -10,12 +10,21 @@ public final class HydraCombatRules {
                 && health < maximumHealth * healthFraction;
     }
 
-    public static HydraSkill ordinarySkill(int randomValue) {
-        return switch (Math.floorMod(randomValue, 3)) {
-            case 0 -> HydraSkill.BITE;
-            case 1 -> HydraSkill.SWEEP;
-            default -> HydraSkill.SLAM;
-        };
+    public static float phaseDamage(
+            float baseDamage, boolean secondPhase, float multiplier) {
+        return secondPhase ? baseDamage * multiplier : baseDamage;
+    }
+
+    public static float fireLordMultiplier(
+            float baseMultiplier, float perHeadMultiplier,
+            int activeHeadCount) {
+        return baseMultiplier + perHeadMultiplier * activeHeadCount;
+    }
+
+    public static HydraSkill customMeleeSkill(int randomValue) {
+        return Math.floorMod(randomValue, 2) == 0
+                ? HydraSkill.SWEEP
+                : HydraSkill.SLAM;
     }
 
     public static double expandingRadius(

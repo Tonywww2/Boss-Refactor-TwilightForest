@@ -3,7 +3,6 @@ package com.tonywww.bossrefactortf.mixin.boss;
 import com.tonywww.bossrefactortf.boss.TwilightBossParryAccess;
 import com.tonywww.bossrefactortf.boss.snowqueen.SnowQueenCombat;
 import com.tonywww.bossrefactortf.boss.snowqueen.SnowQueenCombatAccess;
-import com.tonywww.bossrefactortf.boss.snowqueen.SnowQueenCombatGoal;
 import com.tonywww.bossrefactortf.boss.snowqueen.SnowQueenCombatState;
 import com.tonywww.bossrefactortf.config.BossRefactorTwilightForestConfig;
 import com.tonywww.bossrefactortf.telegraph.AttackTelegraph;
@@ -18,28 +17,19 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.ai.goal.Goal;
-import net.minecraft.world.entity.ai.goal.WrappedGoal;
 import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Constant;
-import org.spongepowered.asm.mixin.injection.Group;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.ModifyConstant;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
-import twilightforest.entity.ai.goal.HoverBeamGoal;
-import twilightforest.entity.ai.goal.HoverSummonGoal;
-import twilightforest.entity.ai.goal.HoverThenDropGoal;
 import twilightforest.entity.boss.SnowQueen;
 
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.List;
 
 @Mixin(value = SnowQueen.class, remap = false)
 public abstract class SnowQueenMixin extends Monster
@@ -65,6 +55,14 @@ public abstract class SnowQueenMixin extends Monster
     private static final EntityDataAccessor<Float> BOSS_REFACTOR_TF$SHIELD_VERTICAL_OFFSET =
             SynchedEntityData.defineId(
                 SnowQueen.class, EntityDataSerializers.FLOAT);
+        @Unique
+        private static final EntityDataAccessor<Float> BOSS_REFACTOR_TF$SHIELD_WAVE_AMPLITUDE =
+            SynchedEntityData.defineId(
+                SnowQueen.class, EntityDataSerializers.FLOAT);
+        @Unique
+        private static final EntityDataAccessor<Float> BOSS_REFACTOR_TF$SHIELD_WAVE_SPEED =
+            SynchedEntityData.defineId(
+                SnowQueen.class, EntityDataSerializers.FLOAT);
     @Unique
     private static final EntityDataAccessor<Boolean> BOSS_REFACTOR_TF$SECOND_PHASE =
             SynchedEntityData.defineId(
@@ -83,37 +81,6 @@ public abstract class SnowQueenMixin extends Monster
         super(entityType, level);
     }
 
-    @ModifyConstant(
-            method = "<init>",
-            constant = @Constant(intValue = 7),
-            require = 1,
-            remap = false)
-    private int bossRefactorTF$expandIceShieldArray(int originalCapacity) {
-        return 8;
-    }
-
-    @Inject(
-            method = {"registerGoals", "m_8099_"},
-            at = @At("TAIL"),
-            remap = false)
-    private void bossRefactorTF$replaceCombatGoals(CallbackInfo callback) {
-        if (!BossRefactorTwilightForestConfig.SNOW_QUEEN.enabled.get()) {
-            return;
-        }
-        List<Goal> replacedGoals = new ArrayList<>();
-        for (WrappedGoal wrappedGoal : goalSelector.getAvailableGoals()) {
-            Goal goal = wrappedGoal.getGoal();
-            if (goal instanceof HoverSummonGoal
-                    || goal instanceof HoverThenDropGoal
-                    || goal instanceof HoverBeamGoal) {
-                replacedGoals.add(goal);
-            }
-        }
-        replacedGoals.forEach(goalSelector::removeGoal);
-        goalSelector.addGoal(0,
-                new SnowQueenCombatGoal(bossRefactorTF$self()));
-    }
-
     @Inject(
             method = {"defineSynchedData", "m_8097_"},
             at = @At("TAIL"),
@@ -124,28 +91,12 @@ public abstract class SnowQueenMixin extends Monster
         getEntityData().define(BOSS_REFACTOR_TF$SHIELD_ORBIT_RADIUS, 1.5F);
         getEntityData().define(BOSS_REFACTOR_TF$SHIELD_ANGULAR_SPEED, 5.0F);
         getEntityData().define(BOSS_REFACTOR_TF$SHIELD_VERTICAL_OFFSET, 0.0F);
+        getEntityData().define(BOSS_REFACTOR_TF$SHIELD_WAVE_AMPLITUDE, 0.4F);
+        getEntityData().define(BOSS_REFACTOR_TF$SHIELD_WAVE_SPEED, 6.0F);
         getEntityData().define(BOSS_REFACTOR_TF$SECOND_PHASE, false);
         getEntityData().define(
                 BOSS_REFACTOR_TF$TELEGRAPH,
                 AttackTelegraphNbt.encode(AttackTelegraph.NONE));
-    }
-
-    @Inject(
-            method = {"aiStep", "m_8107_"},
-            at = @At("HEAD"),
-            remap = false)
-    private void bossRefactorTF$disableOriginalCombatState(
-            CallbackInfo callback) {
-        if (!SnowQueenCombat.customCombatActive(bossRefactorTF$self())) {
-            return;
-        }
-        SnowQueen queen = bossRefactorTF$self();
-        if (queen.getCurrentPhase() != SnowQueen.Phase.SUMMON) {
-            queen.setCurrentPhase(SnowQueen.Phase.SUMMON);
-        }
-        if (queen.isBreathing()) {
-            queen.setBreathing(false);
-        }
     }
 
     @Inject(
@@ -156,40 +107,22 @@ public abstract class SnowQueenMixin extends Monster
         SnowQueenCombat.tickBaseTraits(bossRefactorTF$self());
     }
 
-        @Group(name = "disableOriginalPhaseTransitions", min = 1, max = 1)
-        @Inject(
-                method = {"customServerAiStep", "m_8024_"},
-            at = @At(
-                    value = "INVOKE",
-                    target = "Lnet/minecraft/world/entity/monster/Monster;customServerAiStep()V",
-                    shift = At.Shift.AFTER),
-            cancellable = true,
-            require = 0,
+    @Inject(
+            method = {"customServerAiStep", "m_8024_"},
+            at = @At("TAIL"),
             remap = false)
-        private void bossRefactorTF$disableOriginalPhaseTransitionsMcp(
-            CallbackInfo callback) {
-        bossRefactorTF$disableOriginalPhaseTransitions(callback);
-        }
+    private void bossRefactorTF$tickCombatSidecar(CallbackInfo callback) {
+        SnowQueenCombat.tickSidecar(bossRefactorTF$self());
+    }
 
-        @Group(name = "disableOriginalPhaseTransitions", min = 1, max = 1)
-        @Inject(
-                method = {"customServerAiStep", "m_8024_"},
-            at = @At(
-                value = "INVOKE",
-                target = "Lnet/minecraft/world/entity/monster/Monster;m_8024_()V",
-                shift = At.Shift.AFTER),
+    @Inject(
+            method = "destroyBlocksInAABB",
+            at = @At("HEAD"),
             cancellable = true,
-            require = 0,
             remap = false)
-        private void bossRefactorTF$disableOriginalPhaseTransitionsSrg(
-            CallbackInfo callback) {
-        bossRefactorTF$disableOriginalPhaseTransitions(callback);
-        }
-
-        @Unique
-        private void bossRefactorTF$disableOriginalPhaseTransitions(
-            CallbackInfo callback) {
-        if (BossRefactorTwilightForestConfig.SNOW_QUEEN.enabled.get()) {
+    private void bossRefactorTF$preserveArenaBlocks(
+            AABB bounds, CallbackInfo callback) {
+        if (SnowQueenCombat.customCombatActive(bossRefactorTF$self())) {
             callback.cancel();
         }
     }
@@ -326,6 +259,28 @@ public abstract class SnowQueenMixin extends Monster
     }
 
     @Override
+    public double bossRefactorTF$getSnowQueenShieldWaveAmplitude() {
+        return getEntityData().get(BOSS_REFACTOR_TF$SHIELD_WAVE_AMPLITUDE);
+    }
+
+    @Override
+    public void bossRefactorTF$setSnowQueenShieldWaveAmplitude(
+            double amplitude) {
+        getEntityData().set(
+                BOSS_REFACTOR_TF$SHIELD_WAVE_AMPLITUDE, (float) amplitude);
+    }
+
+    @Override
+    public double bossRefactorTF$getSnowQueenShieldWaveSpeed() {
+        return getEntityData().get(BOSS_REFACTOR_TF$SHIELD_WAVE_SPEED);
+    }
+
+    @Override
+    public void bossRefactorTF$setSnowQueenShieldWaveSpeed(double speed) {
+        getEntityData().set(BOSS_REFACTOR_TF$SHIELD_WAVE_SPEED, (float) speed);
+    }
+
+    @Override
     public boolean bossRefactorTF$isSnowQueenSecondPhase() {
         return getEntityData().get(BOSS_REFACTOR_TF$SECOND_PHASE);
     }
@@ -362,10 +317,17 @@ public abstract class SnowQueenMixin extends Monster
     }
 
     @Override
+    public boolean bossRefactorTF$isCurrentAttackParryable(
+            @Nullable LivingEntity actor) {
+        return SnowQueenCombat.isCurrentAttackParryable(
+                bossRefactorTF$self(), actor);
+    }
+
+    @Override
     public int bossRefactorTF$getParryFeedbackTicks() {
         return bossRefactorTF$isCurrentAttackParryable()
                 ? BossRefactorTwilightForestConfig.SNOW_QUEEN
-                        .slamParryFeedbackTicks.get()
+                .iceShieldParryFeedbackTicks.get()
                 : 0;
     }
 
@@ -379,7 +341,8 @@ public abstract class SnowQueenMixin extends Monster
             @Nullable LivingEntity actor, ResourceLocation sourceId) {
         int feedbackTicks = bossRefactorTF$getParryFeedbackTicks();
         return feedbackTicks > 0
-                && SnowQueenCombat.acceptParry(bossRefactorTF$self())
+            && SnowQueenCombat.acceptParry(
+                bossRefactorTF$self(), actor, sourceId)
                 ? feedbackTicks
                 : 0;
     }

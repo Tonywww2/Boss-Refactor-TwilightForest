@@ -4,6 +4,7 @@ import com.tonywww.bossrefactortf.BossRefactorTwilightForest;
 import com.tonywww.bossrefactortf.config.BossRefactorTwilightForestConfig;
 import net.minecraftforge.event.entity.living.LivingDeathEvent;
 import net.minecraftforge.event.entity.living.LivingHurtEvent;
+import net.minecraftforge.event.level.ExplosionEvent;
 import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -13,6 +14,7 @@ import twilightforest.entity.monster.StableIceCore;
 import twilightforest.entity.monster.UnstableIceCore;
 
 import java.util.Objects;
+import java.util.UUID;
 
 @Mod.EventBusSubscriber(
         modid = BossRefactorTwilightForest.MOD_ID,
@@ -63,6 +65,28 @@ public final class SnowQueenCombatEvents {
             SnowQueenCombat.onSummonDeath(summon);
         }
     }
+
+        @SubscribeEvent
+        public static void onExplosionDetonate(ExplosionEvent.Detonate event) {
+        if (!BossRefactorTwilightForestConfig.SNOW_QUEEN.enabled.get()
+            || !(event.getExplosion().getExploder()
+                instanceof UnstableIceCore core)
+            || !(core instanceof SnowQueenSummonAccess summon)
+            || summon.bossRefactorTF$getSnowQueenSummonRole()
+                != SnowQueenSummonAccess.ROLE_RAIN) {
+            return;
+        }
+        UUID ownerUuid = summon.bossRefactorTF$getSnowQueenOwnerUuid();
+        if (ownerUuid == null) {
+            return;
+        }
+        event.getAffectedEntities().removeIf(entity ->
+            (entity instanceof SnowQueen queen
+                && ownerUuid.equals(queen.getUUID()))
+            || (entity instanceof SnowQueenSummonAccess other
+                && ownerUuid.equals(
+                    other.bossRefactorTF$getSnowQueenOwnerUuid())));
+        }
 
     private static boolean isSameOwnerTarget(
             SnowQueenSummonAccess summon, Object target) {

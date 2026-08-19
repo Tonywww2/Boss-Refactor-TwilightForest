@@ -21,6 +21,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.ShieldItem;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+import twilightforest.entity.ai.goal.NagaMovementPattern;
 import twilightforest.entity.boss.Naga;
 
 import javax.annotation.Nullable;
@@ -57,6 +58,7 @@ public final class NagaCombat {
         NagaCombatState state = state(naga);
         return state.actionState != NagaActionState.IDLE
             || state.fireSnakeTicks > 0
+            || state.secondPhase
             || isRetainableTarget(naga, naga.getTarget())
             || (!state.secondPhase && NagaCombatRules.isSecondPhase(
                 naga.getHealth(), naga.getMaxHealth(),
@@ -97,11 +99,10 @@ public final class NagaCombat {
         switch (state.actionState) {
             case IDLE -> startIfIdle(naga);
             case CRUISING -> tickCruise(naga, state);
+            case CHARGE -> tickCharge(naga, state);
             case POUNCE_WINDUP -> tickPounceWindup(naga, state);
             case POUNCE_FLIGHT -> tickPounceFlight(naga, state);
             case POUNCE_IMPACT -> performPounceImpact(naga, state);
-            case TAIL_WINDUP -> tickTailWindup(naga, state);
-            case TAIL_STRIKE -> performTailStrike(naga, state);
             case VENOM_WINDUP -> tickVenomWindup(naga, state);
             case VENOM_PROJECTILE -> tickVenomProjectile(naga, state);
             case STUNNED -> tickStunned(naga, state);
@@ -114,8 +115,7 @@ public final class NagaCombat {
 
     public static boolean isCurrentAttackParryable(Naga naga) {
         return switch (state(naga).actionState) {
-            case POUNCE_WINDUP, POUNCE_FLIGHT, POUNCE_IMPACT,
-                    TAIL_WINDUP, TAIL_STRIKE,
+            case CHARGE, POUNCE_WINDUP, POUNCE_FLIGHT, POUNCE_IMPACT,
                     VENOM_WINDUP, VENOM_PROJECTILE -> true;
             default -> false;
         };
@@ -147,6 +147,26 @@ public final class NagaCombat {
         return true;
     }
 
+    public static boolean isCharging(Naga naga) {
+        return state(naga).actionState == NagaActionState.CHARGE;
+    }
+
+    public static boolean isChargeShieldBlock(
+            Naga naga, boolean holdingShield, boolean damageSourceBlocked) {
+        return NagaCombatRules.isChargeShieldBlock(
+                state(naga).actionState, holdingShield, damageSourceBlocked);
+    }
+
+    public static void onChargeShieldBlocked(
+            Naga naga, ServerPlayer player, ItemStack blockedShield) {
+        NagaCombatState state = state(naga);
+        if (state.actionState != NagaActionState.CHARGE) {
+            return;
+        }
+        applyShieldCooldown(player, blockedShield);
+        interruptWithPossibleStun(naga, state);
+    }
+
     public static void onVenomProjectileResolved(
             ServerLevel level, UUID ownerId, UUID projectileId) {
         if (!(level.getEntity(ownerId) instanceof Naga naga)
@@ -164,6 +184,10 @@ public final class NagaCombat {
 
     public static void restoreVisualState(Naga naga) {
         NagaCombatState state = state(naga);
+        stopChargeMovement(naga);
+        if (state.actionState == NagaActionState.CHARGE) {
+            enterState(state, NagaActionState.CRUISING, 1);
+        }
         access(naga).bossRefactorTF$setPrimaryTelegraph(AttackTelegraph.NONE);
         access(naga).bossRefactorTF$setSecondaryTelegraph(AttackTelegraph.NONE);
         synchronizeIndicator(naga);
@@ -187,6 +211,27 @@ public final class NagaCombat {
         state.stateTicks++;
         if (state.stateTicks >= state.stateDuration) {
             beginNextSkill(naga, target, state);
+        }
+    }
+
+    private static void tickCharge(Naga naga, NagaCombatState state) {
+        LivingEntity target = naga.getTarget();
+        NagaMovementPattern movementPattern =
+                access(naga).bossRefactorTF$getMovementPattern();
+        if (!isRetainableTarget(naga, target) || movementPattern == null) {
+            beginCruise(naga);
+            return;
+        }
+        movementPattern.tick();
+        if (state.actionState != NagaActionState.CHARGE) {
+            return;
+        }
+        if (isVanillaDazeState(movementPattern)) {
+            interruptWithPossibleStun(naga, state);
+            return;
+        }
+        if (!isVanillaChargeState(movementPattern)) {
+            beginCruise(naga);
         }
     }
 
@@ -249,68 +294,7 @@ public final class NagaCombat {
             interruptWithPossibleStun(naga, state);
             return;
         }
-        beginFollowUpTail(naga, state);
-    }
-
-    private static void tickTailWindup(Naga naga, NagaCombatState state) {
-        stopHorizontalMovement(naga);
-        setTailTelegraph(naga, state);
-        sendWindupParticles(naga, ParticleTypes.SWEEP_ATTACK);
-        state.stateTicks++;
-        if (state.stateTicks >= state.stateDuration) {
-            enterState(state, NagaActionState.TAIL_STRIKE,
-                    BossRefactorTwilightForestConfig.NAGA
-                            .tailDurationTicks.get());
-        }
-    }
-
-    private static void performTailStrike(Naga naga, NagaCombatState state) {
-        stopHorizontalMovement(naga);
-        setTailTelegraph(naga, state);
-        if (NagaBodyRules.shouldApplyTailDamage(
-                state.stateTicks, state.stateDuration,
-                state.tailDamageApplied)) {
-            state.tailDamageApplied = true;
-            if (applyTailDamage(naga, state)) {
-                interruptWithPossibleStun(naga, state);
-                return;
-            }
-        }
-        state.stateTicks++;
-        if (state.stateTicks >= state.stateDuration) {
-            beginCruise(naga);
-        }
-    }
-
-    private static boolean applyTailDamage(Naga naga, NagaCombatState state) {
-        double radius = BossRefactorTwilightForestConfig.NAGA.tailRadius.get();
-        double halfAngle = BossRefactorTwilightForestConfig.NAGA
-                .tailHalfAngleDegrees.get();
-        float damage = attackDamage(naga)
-                * BossRefactorTwilightForestConfig.NAGA
-                        .tailDamageMultiplier.get().floatValue();
-        DamageSource source = naga.damageSources().mobAttack(naga);
-        boolean defended = false;
-        for (LivingEntity target : combatTargets(
-            naga, naga.getBoundingBox().inflate(
-                radius,
-                BossRefactorTwilightForestConfig.NAGA
-                    .tailVerticalRange.get(),
-                radius))) {
-            if (!NagaCombatRules.isInsideArc(
-                    target.getX(), target.getZ(),
-                    naga.getX(), naga.getZ(),
-                    state.directionX, state.directionZ,
-                    radius, halfAngle)) {
-                continue;
-            }
-            if (hurtWithShieldCheck(target, source, damage)) {
-                defended = true;
-                break;
-            }
-        }
-        naga.playSound(SoundEvents.PLAYER_ATTACK_SWEEP, 2.0F, 0.65F);
-        return defended;
+        beginCruise(naga);
     }
 
     private static void tickVenomWindup(Naga naga, NagaCombatState state) {
@@ -375,8 +359,8 @@ public final class NagaCombat {
             Naga naga, LivingEntity target, NagaCombatState state) {
         NagaSkill next = NagaCombatRules.nextSkill(
                 state.lastSkill,
+                state.chargeCooldown <= 0,
                 state.pounceCooldown <= 0,
-                state.tailCooldown <= 0,
                 state.venomCooldown <= 0,
                 naga.getRandom().nextInt());
         if (next == NagaSkill.NONE) {
@@ -385,11 +369,26 @@ public final class NagaCombat {
         }
         state.lastSkill = next;
         switch (next) {
+            case CHARGE -> beginCharge(naga, state);
             case POUNCE -> beginPounce(naga, target, state);
-            case TAIL_SWEEP -> beginTail(naga, target, state);
             case VENOM_BREATH -> beginVenom(naga, target, state);
             case NONE -> beginCruise(naga);
         }
+    }
+
+    private static void beginCharge(Naga naga, NagaCombatState state) {
+        NagaMovementPattern movementPattern =
+                access(naga).bossRefactorTF$getMovementPattern();
+        if (!(movementPattern instanceof NagaMovementPatternAccess charge)) {
+            beginCruise(naga);
+            return;
+        }
+        state.chargeCooldown = BossRefactorTwilightForestConfig.NAGA
+                .chargeCooldownTicks.get();
+        clearTelegraphs(naga);
+        naga.getNavigation().stop();
+        enterState(state, NagaActionState.CHARGE, 0);
+        charge.bossRefactorTF$doCharge(false);
     }
 
     private static void beginPounce(
@@ -401,26 +400,6 @@ public final class NagaCombat {
                 BossRefactorTwilightForestConfig.NAGA.pounceWindupTicks.get());
         naga.getNavigation().stop();
         setPounceTelegraph(naga, state);
-    }
-
-    private static void beginTail(
-            Naga naga, LivingEntity target, NagaCombatState state) {
-        lockDirection(naga, target.position(), state);
-        state.tailCooldown = BossRefactorTwilightForestConfig.NAGA
-                .tailCooldownTicks.get();
-        enterState(state, NagaActionState.TAIL_WINDUP,
-                BossRefactorTwilightForestConfig.NAGA.tailWindupTicks.get());
-        naga.getNavigation().stop();
-        setTailTelegraph(naga, state);
-    }
-
-    private static void beginFollowUpTail(
-            Naga naga, NagaCombatState state) {
-        state.tailCooldown = BossRefactorTwilightForestConfig.NAGA
-                .tailCooldownTicks.get();
-        enterState(state, NagaActionState.TAIL_WINDUP,
-            BossRefactorTwilightForestConfig.NAGA.tailWindupTicks.get());
-        setTailTelegraph(naga, state);
     }
 
     private static void beginVenom(
@@ -436,6 +415,7 @@ public final class NagaCombat {
 
     private static void beginCruise(Naga naga) {
         NagaCombatState state = state(naga);
+        stopChargeMovement(naga);
         int duration = NagaCombatRules.cruiseTicks(
                 BossRefactorTwilightForestConfig.NAGA.cruiseMinimumTicks.get(),
                 BossRefactorTwilightForestConfig.NAGA.cruiseMaximumTicks.get(),
@@ -449,6 +429,7 @@ public final class NagaCombat {
 
     private static void enterIdle(Naga naga) {
         NagaCombatState state = state(naga);
+        stopChargeMovement(naga);
         if (state.venomProjectileId != null
                 && naga.level() instanceof ServerLevel level) {
             NagaAreaEffectData.get(level)
@@ -464,6 +445,7 @@ public final class NagaCombat {
 
     private static void interruptWithPossibleStun(
             Naga naga, NagaCombatState state) {
+        stopChargeMovement(naga);
         if (state.venomProjectileId != null) {
             NagaAreaEffectData.get((ServerLevel) naga.level())
                     .removeVenomProjectile(state.venomProjectileId);
@@ -504,10 +486,7 @@ public final class NagaCombat {
             state.secondPhase = true;
             state.stunImmunityAvailable = true;
             state.stunImmunityRecoveryTicks = 0;
-            state.fireSnakeTicks = BossRefactorTwilightForestConfig.NAGA
-                    .fireSnakeDurationTicks.get();
-            state.fireSnakeElapsedTicks = 0;
-            state.hasLastFirePoint = false;
+            startFireSnake(state);
             naga.playSound(SoundEvents.ENDER_DRAGON_GROWL, 3.0F, 0.7F);
         }
         synchronizeAttributeModifiers(naga, state);
@@ -580,7 +559,22 @@ public final class NagaCombat {
             Naga naga, NagaCombatState state) {
         if (state.fireSnakeTicks <= 0) {
             state.hasLastFirePoint = false;
-            return;
+            if (!state.secondPhase) {
+                return;
+            }
+            NagaCombatRules.FireSnakeCycle cycle =
+                    NagaCombatRules.advanceFireSnakeCycle(
+                            true, 0, state.fireSnakeCooldownTicks,
+                            BossRefactorTwilightForestConfig.NAGA
+                                    .fireSnakeDurationTicks.get(),
+                            BossRefactorTwilightForestConfig.NAGA
+                                    .fireSnakeCooldownTicks.get());
+            state.fireSnakeCooldownTicks = cycle.cooldownTicks();
+            if (!cycle.started()) {
+                return;
+            }
+            state.fireSnakeTicks = cycle.activeTicks();
+            state.fireSnakeElapsedTicks = 0;
         }
         LivingEntity target = naga.getTarget();
         if (isRetainableTarget(naga, target)) {
@@ -600,17 +594,35 @@ public final class NagaCombat {
                 target.getX() + Math.cos(angle) * radius,
                 target.getY(),
                 target.getZ() + Math.sin(angle) * radius,
-                BossRefactorTwilightForestConfig.NAGA.cruiseSpeed.get());
+                BossRefactorTwilightForestConfig.NAGA
+                    .cruiseSpeed.get());
             }
             appendFireTrail(naga, state);
         } else {
             state.hasLastFirePoint = false;
         }
-        state.fireSnakeTicks--;
+        NagaCombatRules.FireSnakeCycle cycle =
+            NagaCombatRules.advanceFireSnakeCycle(
+                true, state.fireSnakeTicks, 0,
+                BossRefactorTwilightForestConfig.NAGA
+                    .fireSnakeDurationTicks.get(),
+                BossRefactorTwilightForestConfig.NAGA
+                    .fireSnakeCooldownTicks.get());
+        state.fireSnakeTicks = cycle.activeTicks();
+        state.fireSnakeCooldownTicks = cycle.cooldownTicks();
         state.fireSnakeElapsedTicks++;
-        if (state.fireSnakeTicks == 0) {
+        if (cycle.ended()) {
+            state.hasLastFirePoint = false;
             synchronizeAttributeModifiers(naga, state);
         }
+    }
+
+    private static void startFireSnake(NagaCombatState state) {
+        state.fireSnakeTicks = BossRefactorTwilightForestConfig.NAGA
+                .fireSnakeDurationTicks.get();
+        state.fireSnakeElapsedTicks = 0;
+        state.fireSnakeCooldownTicks = 0;
+        state.hasLastFirePoint = false;
     }
 
     private static void appendFireTrail(
@@ -762,24 +774,6 @@ public final class NagaCombat {
         access(naga).bossRefactorTF$setSecondaryTelegraph(AttackTelegraph.NONE);
     }
 
-    private static void setTailTelegraph(
-            Naga naga, NagaCombatState state) {
-        access(naga).bossRefactorTF$setPrimaryTelegraph(new AttackTelegraph(
-                AttackTelegraphShape.ARC,
-                (float) state.directionX,
-                (float) state.directionZ,
-                BossRefactorTwilightForestConfig.NAGA
-                        .tailRadius.get().floatValue(),
-                BossRefactorTwilightForestConfig.NAGA
-                        .tailHalfAngleDegrees.get().floatValue(),
-                0.0F,
-                state.actionState == NagaActionState.TAIL_WINDUP
-                        ? AttackTelegraph.windupProgress(
-                                state.stateTicks, state.stateDuration)
-                        : 1.0F));
-        access(naga).bossRefactorTF$setSecondaryTelegraph(AttackTelegraph.NONE);
-    }
-
     private static void setVenomTelegraphs(
             Naga naga, NagaCombatState state) {
         float progress = AttackTelegraph.windupProgress(
@@ -824,8 +818,8 @@ public final class NagaCombat {
     }
 
     private static void decrementCooldowns(NagaCombatState state) {
+        state.chargeCooldown = Math.max(0, state.chargeCooldown - 1);
         state.pounceCooldown = Math.max(0, state.pounceCooldown - 1);
-        state.tailCooldown = Math.max(0, state.tailCooldown - 1);
         state.venomCooldown = Math.max(0, state.venomCooldown - 1);
     }
 
@@ -835,9 +829,6 @@ public final class NagaCombat {
         state.actionState = actionState;
         state.stateTicks = 0;
         state.stateDuration = Math.max(0, duration);
-        if (actionState == NagaActionState.TAIL_STRIKE) {
-            state.tailDamageApplied = false;
-        }
     }
 
     private static void stopHorizontalMovement(Naga naga) {
@@ -867,20 +858,11 @@ public final class NagaCombat {
             Naga naga, NagaCombatState state) {
         NagaCombatAccess access = access(naga);
         NagaBodyPose pose = switch (state.actionState) {
-            case TAIL_WINDUP -> NagaBodyPose.TAIL_WINDUP;
-            case TAIL_STRIKE -> NagaBodyPose.TAIL_STRIKE;
             case STUNNED -> NagaBodyPose.FROZEN;
             default -> NagaBodyPose.TRAIL;
         };
-        float progress = switch (state.actionState) {
-            case TAIL_WINDUP -> AttackTelegraph.windupProgress(
-                    state.stateTicks, state.stateDuration);
-            case TAIL_STRIKE -> (float) NagaBodyRules.tailSweepProgress(
-                    state.stateTicks, state.stateDuration);
-            default -> 0.0F;
-        };
         access.bossRefactorTF$setBodyPose(pose);
-        access.bossRefactorTF$setBodyPoseProgress(progress);
+        access.bossRefactorTF$setBodyPoseProgress(0.0F);
         access.bossRefactorTF$setBodyDirection(
                 state.directionX, state.directionZ);
         naga.setDazed(NagaCombatRules.isStunned(state.actionState));
@@ -917,6 +899,26 @@ public final class NagaCombat {
 
     private static float attackDamage(Naga naga) {
         return (float) naga.getAttributeValue(Attributes.ATTACK_DAMAGE);
+    }
+
+    private static boolean isVanillaChargeState(
+            NagaMovementPattern movementPattern) {
+        String stateName = movementPattern.getState().name();
+        return stateName.equals("CHARGE")
+                || stateName.equals("STUNLESS_CHARGE");
+    }
+
+    private static boolean isVanillaDazeState(
+            NagaMovementPattern movementPattern) {
+        return movementPattern.getState().name().equals("DAZE");
+    }
+
+    private static void stopChargeMovement(Naga naga) {
+        NagaMovementPattern movementPattern =
+                access(naga).bossRefactorTF$getMovementPattern();
+        if (movementPattern != null) {
+            movementPattern.stop();
+        }
     }
 
     private static NagaCombatState state(Naga naga) {

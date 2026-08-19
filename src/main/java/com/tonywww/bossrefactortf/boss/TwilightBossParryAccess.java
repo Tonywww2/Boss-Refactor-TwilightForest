@@ -8,6 +8,11 @@ import javax.annotation.Nullable;
 public interface TwilightBossParryAccess {
     boolean bossRefactorTF$isCurrentAttackParryable();
 
+    default boolean bossRefactorTF$isCurrentAttackParryable(
+            @Nullable LivingEntity actor) {
+        return bossRefactorTF$isCurrentAttackParryable();
+    }
+
     int bossRefactorTF$getParryFeedbackTicks();
 
     default boolean bossRefactorTF$suppressesExternalParryStun() {

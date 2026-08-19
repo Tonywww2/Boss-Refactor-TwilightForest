@@ -16,17 +16,28 @@ import java.util.Set;
 import java.util.UUID;
 
 public final class SnowQueenCombatState {
-    SnowQueenActionState actionState = SnowQueenActionState.IDLE;
-    SnowQueenSkill lastSkill = SnowQueenSkill.NONE;
-    int stateTicks;
-    int stateDuration;
-    int slamsCompleted;
     boolean secondPhase;
     boolean suppressLinkDeathQueue;
+    boolean rainRoundActive;
+    boolean rainRoundCompleted;
+    boolean rainVolleySpawned;
+    int rainQueenWindupRemaining;
+    int linkEstablishTicks;
+    UUID preferredLinkUuid;
+    int linkTeleportRemaining;
+    int fallingIceCooldown;
+    boolean fallingIcePending;
+    int fallingIceRemaining;
+    int fallingIceTotal;
+    boolean fallingIceVisualSpawned;
+    double fallingIceX;
+    double fallingIceY;
+    double fallingIceZ;
     double lockedX;
     double lockedY;
     double lockedZ;
     long lastParryGameTime = Long.MIN_VALUE;
+    UUID lastParryActorUuid;
     AttackTelegraph currentTelegraph = AttackTelegraph.NONE;
     final Set<UUID> linkedSummons = new LinkedHashSet<>();
     final Set<UUID> ownedSummons = new LinkedHashSet<>();
@@ -36,16 +47,31 @@ public final class SnowQueenCombatState {
 
     public CompoundTag save() {
         CompoundTag tag = new CompoundTag();
-        tag.putInt("ActionState", actionState.ordinal());
-        tag.putInt("LastSkill", lastSkill.ordinal());
-        tag.putInt("StateTicks", stateTicks);
-        tag.putInt("StateDuration", stateDuration);
-        tag.putInt("SlamsCompleted", slamsCompleted);
         tag.putBoolean("SecondPhase", secondPhase);
+        tag.putBoolean("RainRoundActive", rainRoundActive);
+        tag.putBoolean("RainRoundCompleted", rainRoundCompleted);
+        tag.putBoolean("RainVolleySpawned", rainVolleySpawned);
+        tag.putInt("RainQueenWindupRemaining", rainQueenWindupRemaining);
+        tag.putInt("LinkEstablishTicks", linkEstablishTicks);
+        if (preferredLinkUuid != null) {
+            tag.putUUID("PreferredLinkUuid", preferredLinkUuid);
+        }
+        tag.putInt("LinkTeleportRemaining", linkTeleportRemaining);
+        tag.putInt("FallingIceCooldown", fallingIceCooldown);
+        tag.putBoolean("FallingIcePending", fallingIcePending);
+        tag.putInt("FallingIceRemaining", fallingIceRemaining);
+        tag.putInt("FallingIceTotal", fallingIceTotal);
+        tag.putBoolean("FallingIceVisualSpawned", fallingIceVisualSpawned);
+        tag.putDouble("FallingIceX", fallingIceX);
+        tag.putDouble("FallingIceY", fallingIceY);
+        tag.putDouble("FallingIceZ", fallingIceZ);
         tag.putDouble("LockedX", lockedX);
         tag.putDouble("LockedY", lockedY);
         tag.putDouble("LockedZ", lockedZ);
         tag.putLong("LastParryGameTime", lastParryGameTime);
+        if (lastParryActorUuid != null) {
+            tag.putUUID("LastParryActorUuid", lastParryActorUuid);
+        }
         tag.put("CurrentTelegraph", AttackTelegraphNbt.encode(currentTelegraph));
         tag.put("LinkedSummons", saveUuids(linkedSummons));
         tag.put("OwnedSummons", saveUuids(ownedSummons));
@@ -73,22 +99,39 @@ public final class SnowQueenCombatState {
     }
 
     public void load(CompoundTag tag) {
-        actionState = SnowQueenActionState.byId(tag.getInt("ActionState"));
-        lastSkill = SnowQueenSkill.byId(tag.getInt("LastSkill"));
-        stateTicks = Math.max(0, tag.getInt("StateTicks"));
-        stateDuration = Math.max(0, tag.getInt("StateDuration"));
-        slamsCompleted = Math.max(0, tag.getInt("SlamsCompleted"));
         secondPhase = tag.getBoolean("SecondPhase");
         suppressLinkDeathQueue = false;
+        rainRoundActive = tag.getBoolean("RainRoundActive");
+        rainRoundCompleted = tag.getBoolean("RainRoundCompleted");
+        rainVolleySpawned = tag.getBoolean("RainVolleySpawned");
+        rainQueenWindupRemaining = Math.max(
+            0, tag.getInt("RainQueenWindupRemaining"));
+        linkEstablishTicks = Math.max(0, tag.getInt("LinkEstablishTicks"));
+        preferredLinkUuid = tag.hasUUID("PreferredLinkUuid")
+            ? tag.getUUID("PreferredLinkUuid")
+            : null;
+        linkTeleportRemaining = Math.max(
+            0, tag.getInt("LinkTeleportRemaining"));
+        fallingIceCooldown = Math.max(0, tag.getInt("FallingIceCooldown"));
+        fallingIcePending = tag.getBoolean("FallingIcePending");
+        fallingIceRemaining = Math.max(0, tag.getInt("FallingIceRemaining"));
+        fallingIceTotal = Math.max(0, tag.getInt("FallingIceTotal"));
+        fallingIceVisualSpawned = tag.getBoolean("FallingIceVisualSpawned");
+        fallingIceX = tag.getDouble("FallingIceX");
+        fallingIceY = tag.getDouble("FallingIceY");
+        fallingIceZ = tag.getDouble("FallingIceZ");
         lockedX = tag.getDouble("LockedX");
         lockedY = tag.getDouble("LockedY");
         lockedZ = tag.getDouble("LockedZ");
         lastParryGameTime = tag.contains("LastParryGameTime")
                 ? tag.getLong("LastParryGameTime")
                 : Long.MIN_VALUE;
+        lastParryActorUuid = tag.hasUUID("LastParryActorUuid")
+            ? tag.getUUID("LastParryActorUuid")
+            : null;
         currentTelegraph = tag.contains("CurrentTelegraph", Tag.TAG_COMPOUND)
-                ? AttackTelegraphNbt.decode(tag.getCompound("CurrentTelegraph"))
-                : AttackTelegraph.NONE;
+            ? AttackTelegraphNbt.decode(tag.getCompound("CurrentTelegraph"))
+            : AttackTelegraph.NONE;
 
         loadUuids(tag.getList("LinkedSummons", Tag.TAG_COMPOUND), linkedSummons);
         loadUuids(tag.getList("OwnedSummons", Tag.TAG_COMPOUND), ownedSummons);

@@ -236,8 +236,7 @@ public final class NagaAreaEffectData extends SavedData {
             FirePoint point = iterator.next();
             point.age++;
             sendFireParticles(level, point);
-                if (point.age >= point.damageInterval
-                    && level.getGameTime() % point.damageInterval == 0) {
+                if (point.age % point.damageInterval == 0) {
                 for (LivingEntity target : targetsInCircle(
                         level, point, point.position(), point.radius,
                         BossRefactorTwilightForestConfig.NAGA

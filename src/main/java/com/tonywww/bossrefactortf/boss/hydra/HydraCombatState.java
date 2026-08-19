@@ -10,17 +10,16 @@ import java.util.List;
 public final class HydraCombatState {
     HydraActionState actionState = HydraActionState.IDLE;
     HydraSkill skill = HydraSkill.NONE;
-    HydraSkill pendingFollowUpSkill = HydraSkill.NONE;
     int actionTicks;
     int actionDuration;
     int activeHeadIndex = -1;
-    int pendingFollowUpHeadIndex = -1;
     int ordinaryAttackCooldown;
+    int evilFireballCooldown;
     int fireLordCooldown;
     int secondPhaseBeamCooldown;
     float recoveryVisualProgress;
-    boolean followUpAttack;
     boolean secondPhase;
+    boolean secondPhaseHeadsActivated;
     boolean combatInitialized;
     double lockedX;
     double lockedY;
@@ -32,19 +31,18 @@ public final class HydraCombatState {
 
     public CompoundTag save() {
         CompoundTag tag = new CompoundTag();
-        tag.putInt("ActionState", actionState.ordinal());
+        tag.putInt("ActionState", actionState.serializedId());
         tag.putInt("Skill", skill.ordinal());
-        tag.putInt("PendingFollowUpSkill", pendingFollowUpSkill.ordinal());
         tag.putInt("ActionTicks", actionTicks);
         tag.putInt("ActionDuration", actionDuration);
         tag.putInt("ActiveHeadIndex", activeHeadIndex);
-        tag.putInt("PendingFollowUpHeadIndex", pendingFollowUpHeadIndex);
         tag.putInt("OrdinaryAttackCooldown", ordinaryAttackCooldown);
+        tag.putInt("EvilFireballCooldown", evilFireballCooldown);
         tag.putInt("FireLordCooldown", fireLordCooldown);
         tag.putInt("SecondPhaseBeamCooldown", secondPhaseBeamCooldown);
         tag.putFloat("RecoveryVisualProgress", recoveryVisualProgress);
-        tag.putBoolean("FollowUpAttack", followUpAttack);
         tag.putBoolean("SecondPhase", secondPhase);
+        tag.putBoolean("SecondPhaseHeadsActivated", secondPhaseHeadsActivated);
         tag.putBoolean("CombatInitialized", combatInitialized);
         tag.putDouble("LockedX", lockedX);
         tag.putDouble("LockedY", lockedY);
@@ -63,21 +61,21 @@ public final class HydraCombatState {
     public void load(CompoundTag tag) {
         actionState = HydraActionState.byId(tag.getInt("ActionState"));
         skill = HydraSkill.byId(tag.getInt("Skill"));
-        pendingFollowUpSkill = HydraSkill.byId(
-                tag.getInt("PendingFollowUpSkill"));
         actionTicks = nonNegative(tag.getInt("ActionTicks"));
         actionDuration = nonNegative(tag.getInt("ActionDuration"));
         activeHeadIndex = tag.getInt("ActiveHeadIndex");
-        pendingFollowUpHeadIndex = tag.getInt("PendingFollowUpHeadIndex");
         ordinaryAttackCooldown = nonNegative(
                 tag.getInt("OrdinaryAttackCooldown"));
+        evilFireballCooldown = nonNegative(
+            tag.getInt("EvilFireballCooldown"));
         fireLordCooldown = nonNegative(tag.getInt("FireLordCooldown"));
         secondPhaseBeamCooldown = nonNegative(
                 tag.getInt("SecondPhaseBeamCooldown"));
         recoveryVisualProgress = Math.max(0.0F, Math.min(
             1.0F, tag.getFloat("RecoveryVisualProgress")));
-        followUpAttack = tag.getBoolean("FollowUpAttack");
         secondPhase = tag.getBoolean("SecondPhase");
+        secondPhaseHeadsActivated = tag.getBoolean(
+            "SecondPhaseHeadsActivated");
         combatInitialized = tag.getBoolean("CombatInitialized");
         lockedX = tag.getDouble("LockedX");
         lockedY = tag.getDouble("LockedY");

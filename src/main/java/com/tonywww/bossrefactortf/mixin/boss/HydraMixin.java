@@ -27,9 +27,12 @@ import net.minecraft.world.level.Level;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Constant;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.ModifyConstant;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+import org.spongepowered.asm.mixin.gen.Invoker;
 import twilightforest.entity.boss.Hydra;
 
 import javax.annotation.Nullable;
@@ -79,6 +82,119 @@ public abstract class HydraMixin extends Mob
         super(entityType, level);
     }
 
+        @ModifyConstant(
+                    method = "<init>",
+                        constant = @Constant(intValue = 7),
+                    require = 3,
+                        remap = false)
+            private int bossRefactorTF$expandConstructorHeadLimit(int original) {
+                return 9;
+            }
+
+            @ModifyConstant(
+                    method = {"aiStep", "m_8107_"},
+                    constant = @Constant(intValue = 7),
+                    require = 3,
+                    remap = false)
+            private int bossRefactorTF$expandAiStepHeadLimit(int original) {
+                return 9;
+            }
+
+            @ModifyConstant(
+                    method = {"customServerAiStep", "m_8024_"},
+                    constant = @Constant(intValue = 7),
+                    require = 3,
+                    remap = false)
+            private int bossRefactorTF$expandServerAiHeadLimit(int original) {
+                return 9;
+            }
+
+            @ModifyConstant(
+                    method = "getRandomDeadHead",
+                    constant = @Constant(intValue = 7),
+                    require = 1,
+                    remap = false)
+            private int bossRefactorTF$expandRandomDeadHeadLimit(int original) {
+                return 9;
+            }
+
+            @ModifyConstant(
+                    method = "attackEntity",
+                    constant = @Constant(intValue = 7),
+                    require = 1,
+                    remap = false)
+            private int bossRefactorTF$expandAttackSelectionHeadLimit(int original) {
+                return 9;
+            }
+
+            @ModifyConstant(
+                    method = "areTooManyHeadsAttacking",
+                    constant = @Constant(intValue = 7),
+                    require = 1,
+                    remap = false)
+            private int bossRefactorTF$expandAttackingHeadLimit(int original) {
+                return 9;
+            }
+
+            @ModifyConstant(
+                    method = "countActiveHeads",
+                    constant = @Constant(intValue = 7),
+                    require = 1,
+                    remap = false)
+            private int bossRefactorTF$expandActiveHeadLimit(int original) {
+                return 9;
+            }
+
+            @ModifyConstant(
+                    method = "areOtherHeadsBiting",
+                    constant = @Constant(intValue = 7),
+                    require = 1,
+                    remap = false)
+            private int bossRefactorTF$expandBitingHeadLimit(int original) {
+                return 9;
+            }
+
+            @ModifyConstant(
+                    method = "secondaryAttacks",
+                    constant = @Constant(intValue = 7),
+                    require = 2,
+                    remap = false)
+            private int bossRefactorTF$expandSecondaryAttackHeadLimit(int original) {
+                return 9;
+            }
+
+            @ModifyConstant(
+                    method = "isAnyHeadTargeting",
+                    constant = @Constant(intValue = 7),
+                    require = 1,
+                    remap = false)
+            private int bossRefactorTF$expandTargetingHeadLimit(int original) {
+                return 9;
+            }
+
+            @ModifyConstant(
+                    method = "attackEntityFromPart",
+                    constant = @Constant(intValue = 7),
+                    require = 1,
+                    remap = false)
+            private int bossRefactorTF$expandPartDamageHeadLimit(int original) {
+                return 9;
+            }
+
+            @ModifyConstant(
+                    method = {"tickDeath", "m_6153_"},
+                    constant = @Constant(intValue = 7),
+                    require = 1,
+                    remap = false)
+            private int bossRefactorTF$expandDeathHeadLimit(int original) {
+                return 9;
+        }
+
+        @Override
+        @Invoker(value = "activateNumberOfHeads", remap = false)
+        public abstract void bossRefactorTF$activateNumberOfHeads(
+                        int desiredHeadCount);
+
     @Inject(
             method = "registerAttributes",
             at = @At("RETURN"),
@@ -118,7 +234,7 @@ public abstract class HydraMixin extends Mob
             remap = false)
     private void bossRefactorTF$clearVanillaHeadActions(
             CallbackInfo callback) {
-        HydraCombat.suppressVanillaHeadActions(bossRefactorTF$self());
+                HydraCombat.enforceCustomAttackOwnership(bossRefactorTF$self());
     }
 
     @Inject(
@@ -128,7 +244,8 @@ public abstract class HydraMixin extends Mob
             remap = false)
     private void bossRefactorTF$disableVanillaPrimaryAttack(
             Entity target, float distance, CallbackInfo callback) {
-        if (HydraCombat.customCombatEnabled()) {
+        if (HydraCombat.shouldSuppressVanillaAttackSelection(
+                bossRefactorTF$self())) {
             callback.cancel();
         }
     }
@@ -140,7 +257,8 @@ public abstract class HydraMixin extends Mob
             remap = false)
     private void bossRefactorTF$disableVanillaSecondaryAttacks(
             CallbackInfo callback) {
-        if (HydraCombat.customCombatEnabled()) {
+        if (HydraCombat.shouldSuppressVanillaAttackSelection(
+                bossRefactorTF$self())) {
             callback.cancel();
         }
     }

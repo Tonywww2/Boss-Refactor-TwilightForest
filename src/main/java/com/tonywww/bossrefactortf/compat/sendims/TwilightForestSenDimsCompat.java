@@ -126,7 +126,8 @@ public final class TwilightForestSenDimsCompat implements TwilightBossParryBridg
     @SubscribeEvent(priority = EventPriority.LOWEST)
     public void onParryAttempt(LeaderParryAttemptEvent event) {
         if (!(event.getTarget() instanceof TwilightBossParryAccess access)
-                || !access.bossRefactorTF$isCurrentAttackParryable()) {
+                || !access.bossRefactorTF$isCurrentAttackParryable(
+                        event.getActor())) {
             return;
         }
         int feedbackTicks = access.bossRefactorTF$getParryFeedbackTicks();

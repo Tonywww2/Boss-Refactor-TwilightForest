@@ -108,6 +108,264 @@ dependencies {
         classpath = sourceSets.test.runtimeClasspath
         mainClass = 'com.tonywww.bossrefactortf.boss.hydra.HydraCombatRulesSelfTest'
     }
+
+    tasks.register('verifyHydraNineHeadContract') {
+        group = 'verification'
+        description = 'Checks the nine-head multipart expansion and Hydra attack ownership contract.'
+        def hydraMixin = file(
+            'src/main/java/com/tonywww/bossrefactortf/mixin/boss/HydraMixin.java')
+        def containerMixin = file(
+            'src/main/java/com/tonywww/bossrefactortf/mixin/boss/HydraHeadContainerMixin.java')
+        def legacyRendererMixin = file(
+            'src/main/java/com/tonywww/bossrefactortf/mixin/client/HydraHeadRendererMixin.java')
+        def newRendererMixin = file(
+            'src/main/java/com/tonywww/bossrefactortf/mixin/client/NewHydraHeadRendererMixin.java')
+        def combat = file(
+            'src/main/java/com/tonywww/bossrefactortf/boss/hydra/HydraCombat.java')
+        def combatRules = file(
+            'src/main/java/com/tonywww/bossrefactortf/boss/hydra/HydraCombatRules.java')
+        def combatState = file(
+            'src/main/java/com/tonywww/bossrefactortf/boss/hydra/HydraCombatState.java')
+        def fireball = file(
+            'src/main/java/com/tonywww/bossrefactortf/boss/hydra/HydraEvilFireball.java')
+        def entityRegistry = file(
+            'src/main/java/com/tonywww/bossrefactortf/registry/BossRefactorTwilightForestEntities.java')
+        def mixinConfig = file('src/main/resources/bossrefactortf.mixins.json')
+        def bypassesShield = file(
+            'src/main/resources/data/minecraft/tags/damage_type/bypasses_shield.json')
+        def isFire = file(
+            'src/main/resources/data/minecraft/tags/damage_type/is_fire.json')
+        def hydraDamageType = file(
+            'src/main/resources/data/bossrefactortf/damage_type/hydra_evil_fire.json')
+        def hydraConfig = file(
+            'src/main/java/com/tonywww/bossrefactortf/config/BossRefactorTwilightForestConfig.java')
+        inputs.files(
+            hydraMixin, containerMixin, legacyRendererMixin,
+            newRendererMixin, combat, combatRules, combatState, fireball,
+            entityRegistry, mixinConfig, bypassesShield, isFire,
+            hydraDamageType, hydraConfig)
+        doLast {
+            def requirements = [
+                (hydraMixin): [
+                    'constant = @Constant(intValue = 7)',
+                    'method = "<init>"',
+                    'method = {"aiStep", "m_8107_"}',
+                    'method = {"customServerAiStep", "m_8024_"}',
+                    'method = "getRandomDeadHead"',
+                    'method = "attackEntity"',
+                    'method = "areTooManyHeadsAttacking"',
+                    'method = "countActiveHeads"',
+                    'method = "areOtherHeadsBiting"',
+                    'method = "secondaryAttacks"',
+                    'method = "isAnyHeadTargeting"',
+                    'method = "attackEntityFromPart"',
+                    'method = {"tickDeath", "m_6153_"}',
+                    'return 9;',
+                    '@Invoker(value = "activateNumberOfHeads", remap = false)'
+                ],
+                (containerMixin): [
+                    'require = 5',
+                    'stateYRotations, 5, 7, 30.0F',
+                    'stateYRotations, 6, 8, -30.0F',
+                    'method = "setNeckPosition()V"',
+                    'headNum != 7 && headNum != 8',
+                    'headNum == 7 ? 165.0F : -165.0F'
+                ],
+                (legacyRendererMixin): ['method = "getHeadObject"', 'return 9;'],
+                (newRendererMixin): ['method = "getHeadObject"', 'return 9;'],
+                (combat): [
+                    'Math.min(9, countActiveHeads(hydra) + 2)',
+                    'HydraActionState.EVIL_FIREBALL_WINDUP',
+                    'shouldSuppressVanillaAttackSelection(',
+                    'hasVanillaAttackInProgress(',
+                    'HydraCombatRules.customMeleeSkill(',
+                    'spawnTargetedBeams(',
+                    'spawnScatteredBeams(',
+                    'HydraCombatRules.phaseDamage(',
+                    'HydraCombatRules.fireLordMultiplier('
+                ],
+                (combatRules): [
+                    'public static float phaseDamage(',
+                    'public static float fireLordMultiplier(',
+                    'public static HydraSkill customMeleeSkill('
+                ],
+                (combatState): [
+                    'tag.putInt("EvilFireballCooldown", evilFireballCooldown);',
+                    'tag.putBoolean("SecondPhaseHeadsActivated", secondPhaseHeadsActivated);',
+                    'tag.put("Beams", beamTags);'
+                ],
+                (fireball): [
+                    'NetworkHooks.getEntitySpawningPacket(this)',
+                    'ProjectileUtil.getHitResultOnMoveVector(',
+                    'if (isRemoved()) {',
+                    'setLockedDirection(',
+                    'discard();',
+                    'Math.max(20, auraInterval)',
+                    'evilFireballAuraIntervalTicks',
+                    'addAdditionalSaveData(CompoundTag tag)'
+                ],
+                (hydraConfig): [
+                    '"aura_interval_ticks", 20, 20, 1200'
+                ],
+                (entityRegistry): ['"hydra_evil_fireball"'],
+                (mixinConfig): [
+                    'client.HydraHeadRendererMixin',
+                    'client.NewHydraHeadRendererMixin'
+                ],
+                (bypassesShield): ['bossrefactortf:hydra_evil_fire']
+            ]
+            def missing = []
+            requirements.each { source, fragments ->
+                String text = source.getText('UTF-8')
+                fragments.findAll { !text.contains(it) }.each {
+                    missing.add("${source.name}: ${it}")
+                }
+            }
+            if (!missing.isEmpty()) {
+                throw new GradleException(
+                    "Hydra nine-head contract is incomplete: ${missing}")
+            }
+            def expectedHeadLimitRequires = [
+                '"<init>"': 3,
+                '{"aiStep", "m_8107_"}': 3,
+                '{"customServerAiStep", "m_8024_"}': 3,
+                '"getRandomDeadHead"': 1,
+                '"attackEntity"': 1,
+                '"areTooManyHeadsAttacking"': 1,
+                '"countActiveHeads"': 1,
+                '"areOtherHeadsBiting"': 1,
+                '"secondaryAttacks"': 2,
+                '"isAnyHeadTargeting"': 1,
+                '"attackEntityFromPart"': 1,
+                '{"tickDeath", "m_6153_"}': 1
+            ]
+            String hydraMixinText = hydraMixin.getText('UTF-8')
+            def selectorFailures = []
+            expectedHeadLimitRequires.each { selector, expectedRequire ->
+                def pattern = "(?s)@ModifyConstant\\s*\\(\\s*method\\s*=\\s*${java.util.regex.Pattern.quote(selector)}\\s*,\\s*constant\\s*=\\s*@Constant\\(intValue\\s*=\\s*7\\)\\s*,\\s*require\\s*=\\s*(\\d+)\\s*,\\s*remap\\s*=\\s*false\\s*\\)"
+                def matcher = hydraMixinText =~ pattern
+                if (!matcher.find()) {
+                    selectorFailures.add("missing 7-limit selector ${selector}")
+                } else if (Integer.parseInt(matcher.group(1)) != expectedRequire) {
+                    selectorFailures.add(
+                        "7-limit selector ${selector} requires ${matcher.group(1)}, expected ${expectedRequire}")
+                }
+            }
+            int actualSevenLimitSelectors = (
+                    hydraMixinText =~ /constant\s*=\s*@Constant\(intValue\s*=\s*7\)/)
+                    .findAll().size()
+            if (actualSevenLimitSelectors != expectedHeadLimitRequires.size()) {
+                selectorFailures.add(
+                    "found ${actualSevenLimitSelectors} Hydra 7-limit selectors, expected ${expectedHeadLimitRequires.size()}")
+            }
+            if (!selectorFailures.isEmpty()) {
+                throw new GradleException(
+                    "Hydra nine-head selector contract failed: ${selectorFailures}")
+            }
+
+            String containerMixinText = containerMixin.getText('UTF-8')
+            def expectedAnimationCopies = [
+                'stateNeckLength, 5, 7, 0.0F',
+                'stateXRotations, 5, 7, 0.0F',
+                'stateYRotations, 5, 7, 30.0F',
+                'stateMouthOpen, 5, 7, 0.0F',
+                'stateNeckLength, 6, 8, 0.0F',
+                'stateXRotations, 6, 8, 0.0F',
+                'stateYRotations, 6, 8, -30.0F',
+                'stateMouthOpen, 6, 8, 0.0F'
+            ]
+            def animationFailures = expectedAnimationCopies.findAll {
+                !containerMixinText.contains(it)
+            }
+            if (!containerMixinText.contains(
+                    'BOSS_REFACTOR_TF$VANILLA_STATE_COUNT = 17')
+                    || !containerMixinText.contains(
+                            'Hydra head animation maps were not initialized')
+                    || !containerMixinText.contains(
+                            'Expanded Hydra head animation map is incomplete')) {
+                animationFailures.add(
+                    'the 17-state head-animation completeness guards')
+            }
+            if (containerMixinText.indexOf('method = "<init>"')
+                    > containerMixinText.indexOf('method = "setupStateRotations"')) {
+                animationFailures.add(
+                    'constructor array expansion must precede state-map copying')
+            }
+            if (!animationFailures.isEmpty()) {
+                throw new GradleException(
+                    "Hydra expanded head animation contract failed: ${animationFailures}")
+            }
+
+            def vanillaAttackOwnershipFailures = []
+            if (containerMixinText.contains('method = "executeAttacks"')) {
+                vanillaAttackOwnershipFailures.add(
+                    'HydraHeadContainer.executeAttacks must remain fully vanilla')
+            }
+            if (!hydraMixinText.contains(
+                    'HydraCombat.shouldSuppressVanillaAttackSelection(')) {
+                vanillaAttackOwnershipFailures.add(
+                    'Hydra vanilla selection may only pause for custom attack ownership')
+            }
+            if (combat.getText('UTF-8').contains('HydraHeadStateBridge')
+                    || file('src/main/java/com/tonywww/bossrefactortf/boss/hydra/HydraHeadStateBridge.java').exists()) {
+                vanillaAttackOwnershipFailures.add(
+                    'Hydra flame breath must be scheduled and executed by Twilight Forest')
+            }
+            if (!vanillaAttackOwnershipFailures.isEmpty()) {
+                throw new GradleException(
+                    "Hydra vanilla attack ownership failed: ${vanillaAttackOwnershipFailures}")
+            }
+
+            def splitPackageSources = fileTree('src/main/java/twilightforest') {
+                include '**/*.java'
+            }.files
+            if (!splitPackageSources.isEmpty()) {
+                throw new GradleException(
+                    "Hydra compatibility must not create a Twilight Forest split package: ${splitPackageSources}")
+            }
+
+            int baseMultipartParts = 4
+            int partsPerHead = 6
+            int expandedHeadCount = 9
+                int expectedMultipartParts = baseMultipartParts + expandedHeadCount * partsPerHead
+            if (expectedMultipartParts != 58) {
+                throw new GradleException(
+                    "Hydra multipart count changed: ${expectedMultipartParts}")
+            }
+
+            def jsonSlurper = new groovy.json.JsonSlurper()
+            def damageTagFailures = []
+            [(bypassesShield): 'bypasses_shield', (isFire): 'is_fire'].each {
+                    tagFile, tagName ->
+                def tag = jsonSlurper.parse(tagFile)
+                def values = tag.values as List
+                if (tag.replace != false) {
+                    damageTagFailures.add("${tagName} must append instead of replace")
+                }
+                if (!values.contains('bossrefactortf:hydra_evil_fire')) {
+                    damageTagFailures.add("${tagName} must contain hydra_evil_fire")
+                }
+                def nonCustomValues = values.findAll {
+                    !(it instanceof String) || !it.startsWith('bossrefactortf:')
+                }
+                if (!nonCustomValues.isEmpty()) {
+                    damageTagFailures.add(
+                        "${tagName} must not add non-custom damage types: ${nonCustomValues}")
+                }
+            }
+            if (!damageTagFailures.isEmpty()) {
+                throw new GradleException(
+                    "Hydra damage tag contract failed: ${damageTagFailures}")
+            }
+
+            def legacyFollowUpSources = [combat, combatState, hydraConfig]
+                    .findAll { it.getText('UTF-8').toLowerCase().contains('followup') }
+            if (!legacyFollowUpSources.isEmpty()) {
+                throw new GradleException(
+                    "Hydra follow-up contract must stay removed: ${legacyFollowUpSources*.name}")
+            }
+        }
+    }
     if (project.hasProperty('enableSenDimsRuntime')) {
         runtimeOnly fg.deobf(
                 "curse.maven:slashblade-resharped-1022428:${slashblade_file_id}")
@@ -367,10 +625,20 @@ tasks.register('verifyMixinRefmapContract') {
         'src/main/java/com/tonywww/bossrefactortf/mixin/boss/LichShadowsGoalMixin.java')
     def nagaMixinFile = file(
         'src/main/java/com/tonywww/bossrefactortf/mixin/boss/NagaMixin.java')
+    def nagaMovementPatternInvokerMixinFile = file(
+        'src/main/java/com/tonywww/bossrefactortf/mixin/boss/NagaMovementPatternAccessMixin.java')
+    def nagaCombatFile = file(
+        'src/main/java/com/tonywww/bossrefactortf/boss/naga/NagaCombat.java')
+    def nagaChargeAttackGoalFile = file(
+        'src/main/java/com/tonywww/bossrefactortf/boss/naga/NagaChargeAttackGoal.java')
     def hydraMixinFile = file(
         'src/main/java/com/tonywww/bossrefactortf/mixin/boss/HydraMixin.java')
     def hydraHeadContainerMixinFile = file(
         'src/main/java/com/tonywww/bossrefactortf/mixin/boss/HydraHeadContainerMixin.java')
+    def hydraHeadRendererMixinFile = file(
+        'src/main/java/com/tonywww/bossrefactortf/mixin/client/HydraHeadRendererMixin.java')
+    def newHydraHeadRendererMixinFile = file(
+        'src/main/java/com/tonywww/bossrefactortf/mixin/client/NewHydraHeadRendererMixin.java')
     def fallingIceMixinFile = file(
         'src/main/java/com/tonywww/bossrefactortf/mixin/boss/FallingIceMixin.java')
     def urGhastMixinFile = file(
@@ -396,9 +664,13 @@ tasks.register('verifyMixinRefmapContract') {
     inputs.files(mixinConfigFile, generatedRefmapFile,
         attackGoalsMixinFile, formationGoalMixinFile,
         throwWeaponInvokerMixinFile, alphaYetiMixinFile, minoshroomMixinFile,
-        snowQueenMixinFile, stableIceCoreMixinFile, unstableIceCoreMixinFile,
+        snowQueenMixinFile,
+        stableIceCoreMixinFile, unstableIceCoreMixinFile,
         lichMixinFile, lichPhaseGoalMixinFile, lichShadowsGoalMixinFile,
-        nagaMixinFile, hydraMixinFile, hydraHeadContainerMixinFile,
+        nagaMixinFile, nagaMovementPatternInvokerMixinFile,
+        nagaCombatFile, nagaChargeAttackGoalFile,
+        hydraMixinFile, hydraHeadContainerMixinFile,
+        hydraHeadRendererMixinFile, newHydraHeadRendererMixinFile,
         fallingIceMixinFile, urGhastMixinFile,
         urGhastFireballMixinFile, largeFireballTelegraphMixinFile,
         largeFireballRendererMixinFile,
@@ -484,11 +756,10 @@ tasks.register('verifyMixinRefmapContract') {
                     ],
                 (snowQueenMixinFile):
                     [
-                        'method = {"registerGoals", "m_8099_"}',
                         'method = {"defineSynchedData", "m_8097_"}',
-                        'method = {"aiStep", "m_8107_"}',
                         'method = {"tick", "m_8119_"}',
                         'method = {"customServerAiStep", "m_8024_"}',
+                        'method = "destroyBlocksInAABB"',
                         'method = {"addAdditionalSaveData", "m_7380_"}',
                         'method = {"readAdditionalSaveData", "m_7378_"}'
                     ],
@@ -508,6 +779,9 @@ tasks.register('verifyMixinRefmapContract') {
                         'method = {"tickDeath", "m_6153_"}',
                         '@ModifyConstant(',
                         '@Redirect(',
+                        'target = "Lnet/minecraft/world/level/Level;explode(',
+                        'target = "Lnet/minecraft/world/level/Level;m_254849_(',
+                        'Level.ExplosionInteraction.NONE',
                         'target = "Ltwilightforest/entity/monster/UnstableIceCore;transformBlocks()V"'
                     ],
                 (lichMixinFile):
@@ -544,6 +818,12 @@ tasks.register('verifyMixinRefmapContract') {
                     ],
                 (hydraMixinFile):
                     [
+                        'constant = @Constant(intValue = 7)',
+                        'method = {"aiStep", "m_8107_"}',
+                        'method = {"customServerAiStep", "m_8024_"}',
+                        'method = "secondaryAttacks"',
+                        'method = {"tickDeath", "m_6153_"}',
+                        '@Invoker(value = "activateNumberOfHeads", remap = false)',
                         'method = "registerAttributes"',
                         'method = {"defineSynchedData", "m_8097_"}',
                         'method = {"aiStep", "m_8107_"}',
@@ -557,8 +837,27 @@ tasks.register('verifyMixinRefmapContract') {
                     ],
                 (hydraHeadContainerMixinFile):
                     [
-                        'method = "executeAttacks"',
-                        'callback.cancel();'
+                        'constant = @Constant(intValue = 7)',
+                        'require = 5',
+                        'stateYRotations, 5, 7, 30.0F',
+                        'stateYRotations, 6, 8, -30.0F',
+                        'method = "setNeckPosition()V"',
+                        'headNum != 7 && headNum != 8',
+                        'headNum == 7 ? 165.0F : -165.0F'
+                    ],
+                (hydraHeadRendererMixinFile):
+                    [
+                        '@Mixin(value = HydraHeadRenderer.class, remap = false)',
+                        'method = "getHeadObject"',
+                        'require = 1',
+                        'return 9;'
+                    ],
+                (newHydraHeadRendererMixinFile):
+                    [
+                        '@Mixin(value = NewHydraHeadRenderer.class, remap = false)',
+                        'method = "getHeadObject"',
+                        'require = 1',
+                        'return 9;'
                     ],
                 (hydraHeadModelMixinFile):
                     [
@@ -623,6 +922,11 @@ tasks.register('verifyMixinRefmapContract') {
             throw new GradleException(
                     'The custom state machine must register the vanilla skill invoker Mixin')
         }
+        if (!mixinConfig.mixins.contains(
+            'boss.NagaMovementPatternAccessMixin')) {
+            throw new GradleException(
+                'The Naga takeover must register the vanilla charge invoker Mixin')
+        }
         for (String mixinName : ['boss.AlphaYetiMixin',
                  'boss.MinoshroomMixin',
                  'boss.SnowQueenMixin',
@@ -645,11 +949,19 @@ tasks.register('verifyMixinRefmapContract') {
                         "The boss takeover must register ${mixinName}")
             }
         }
+            if (mixinConfig.mixins.contains('boss.HoverSummonGoalMixin')
+                || snowQueenMixinFile.getText('UTF-8').contains(
+                    'method = {"registerGoals", "m_8099_"}')) {
+                throw new GradleException(
+                    'Snow Queen must retain its original summon and combat goals')
+            }
         for (String mixinName : ['client.LargeFireballRendererMixin',
+                                 'client.HydraHeadRendererMixin',
                                  'client.HydraHeadModelMixin',
                                  'client.NagaFireSnakeRendererMixin',
                                  'client.NagaSegmentFireSnakeRendererMixin',
-                                 'client.NewHydraHeadModelMixin']) {
+                                 'client.NewHydraHeadModelMixin',
+                                 'client.NewHydraHeadRendererMixin']) {
             if (!mixinConfig.client.contains(mixinName)) {
                 throw new GradleException(
                     "The client renderer Mixin must register ${mixinName}")
@@ -675,6 +987,39 @@ tasks.register('verifyMixinRefmapContract') {
                 throw new GradleException(
                         "Vanilla Knight Phantom skill invoker is missing: ${method}")
             }
+        }
+        def nagaChargeInvoker = nagaMovementPatternInvokerMixinFile
+            .getText('UTF-8')
+        if (!nagaChargeInvoker.contains('@Invoker("doCharge")')) {
+            throw new GradleException(
+                'The Naga vanilla charge invoker is missing: doCharge')
+        }
+        def nagaCombat = nagaCombatFile.getText('UTF-8')
+        def nagaMixin = nagaMixinFile.getText('UTF-8')
+        def nagaChargeAttackGoal = nagaChargeAttackGoalFile.getText('UTF-8')
+        def nagaChargeContracts = [
+            (nagaCombat): [
+                'charge.bossRefactorTF$doCharge(false);',
+                'movementPattern.tick();'
+            ],
+            (nagaMixin): [
+                'new NagaChargeAttackGoal(',
+                '@Group(name = "directionalChargeShield", min = 1, max = 1)',
+                'target = "Lnet/minecraft/world/entity/LivingEntity;isBlocking()Z"',
+                'target = "Lnet/minecraft/world/entity/LivingEntity;m_21254_()Z"'
+            ],
+            (nagaChargeAttackGoal): [
+                'return NagaCombat.isCharging(naga) && delegate.canUse();',
+                'delegate.tick();'
+            ]
+        ]
+        def missingNagaChargeContracts = nagaChargeContracts.collectMany {
+                source, contracts ->
+            contracts.findAll { !source.contains(it) }
+        }
+        if (!missingNagaChargeContracts.isEmpty()) {
+            throw new GradleException(
+                "The Naga vanilla charge delegation is incomplete: ${missingNagaChargeContracts}")
         }
     }
 }

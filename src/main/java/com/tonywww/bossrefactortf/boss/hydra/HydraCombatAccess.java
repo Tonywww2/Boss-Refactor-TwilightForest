@@ -7,6 +7,8 @@ import java.util.List;
 public interface HydraCombatAccess {
     HydraCombatState bossRefactorTF$getHydraCombatState();
 
+    void bossRefactorTF$activateNumberOfHeads(int desiredHeadCount);
+
     HydraSkill bossRefactorTF$getVisibleHydraSkill();
 
     int bossRefactorTF$getVisibleHydraHeadIndex();

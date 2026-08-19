@@ -4,6 +4,7 @@ import com.mojang.logging.LogUtils;
 import com.tonywww.bossrefactortf.boss.TwilightBossParryIntegration;
 import com.tonywww.bossrefactortf.compat.OptionalCompatBootstrap;
 import com.tonywww.bossrefactortf.config.BossRefactorTwilightForestConfig;
+import com.tonywww.bossrefactortf.registry.BossRefactorTwilightForestEntities;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
@@ -21,6 +22,7 @@ public final class BossRefactorTwilightForest {
     @SuppressWarnings("removal")
     public BossRefactorTwilightForest(FMLJavaModLoadingContext context) {
         IEventBus modEventBus = context.getModEventBus();
+        BossRefactorTwilightForestEntities.register(modEventBus);
         modEventBus.addListener(this::commonSetup);
         ModLoadingContext.get().registerConfig(
                 ModConfig.Type.COMMON,

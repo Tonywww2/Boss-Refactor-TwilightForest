@@ -25,12 +25,17 @@ public final class NagaCombatRules {
             NagaActionState actionState, boolean secondPhase,
             boolean stunImmunityAvailable) {
         return switch (actionState) {
-            case VENOM_WINDUP, VENOM_PROJECTILE -> true;
-            case POUNCE_WINDUP, POUNCE_FLIGHT, POUNCE_IMPACT,
-                    TAIL_WINDUP, TAIL_STRIKE -> secondPhase
-                            && stunImmunityAvailable;
+            case CHARGE, POUNCE_WINDUP, POUNCE_FLIGHT,
+                    POUNCE_IMPACT, VENOM_WINDUP, VENOM_PROJECTILE -> true;
             default -> false;
         };
+    }
+
+    public static boolean isChargeShieldBlock(
+            NagaActionState actionState, boolean holdingShield,
+            boolean activelyBlocking) {
+        return actionState == NagaActionState.CHARGE
+                && holdingShield && activelyBlocking;
     }
 
     public static int cruiseTicks(int minimum, int maximum, double roll) {
@@ -41,11 +46,11 @@ public final class NagaCombatRules {
     }
 
     public static NagaSkill nextSkill(
-            NagaSkill previous, boolean pounceReady,
-            boolean tailReady, boolean venomReady, int roll) {
+            NagaSkill previous, boolean chargeReady,
+            boolean pounceReady, boolean venomReady, int roll) {
         List<NagaSkill> choices = new ArrayList<>(3);
+        addIfReady(choices, NagaSkill.CHARGE, previous, chargeReady);
         addIfReady(choices, NagaSkill.POUNCE, previous, pounceReady);
-        addIfReady(choices, NagaSkill.TAIL_SWEEP, previous, tailReady);
         addIfReady(choices, NagaSkill.VENOM_BREATH, previous, venomReady);
         if (choices.isEmpty()) {
             return NagaSkill.NONE;
@@ -59,27 +64,6 @@ public final class NagaCombatRules {
         double deltaX = pointX - centerX;
         double deltaZ = pointZ - centerZ;
         return deltaX * deltaX + deltaZ * deltaZ <= radius * radius;
-    }
-
-    public static boolean isInsideArc(
-            double pointX, double pointZ,
-            double originX, double originZ,
-            double directionX, double directionZ,
-            double radius, double halfAngleDegrees) {
-        double deltaX = pointX - originX;
-        double deltaZ = pointZ - originZ;
-        double distanceSquared = deltaX * deltaX + deltaZ * deltaZ;
-        if (distanceSquared > radius * radius || distanceSquared == 0.0) {
-            return distanceSquared == 0.0;
-        }
-        double directionLength = Math.hypot(directionX, directionZ);
-        if (directionLength == 0.0) {
-            return false;
-        }
-        double dot = (deltaX * directionX + deltaZ * directionZ)
-                / (Math.sqrt(distanceSquared) * directionLength);
-        double minimumDot = Math.cos(Math.toRadians(halfAngleDegrees));
-        return dot + 1.0E-12 >= minimumDot;
     }
 
     public static boolean isInsideCorridor(
@@ -110,7 +94,7 @@ public final class NagaCombatRules {
         return startRadius + (endRadius - startRadius) * progress;
     }
 
-        public static HorizontalPoint blockedCloudCenter(
+    public static HorizontalPoint blockedCloudCenter(
             double targetCenterX, double targetCenterZ,
             double targetHalfSizeX, double targetHalfSizeZ,
             double directionX, double directionZ, double offset) {
@@ -144,7 +128,35 @@ public final class NagaCombatRules {
         return fireSnakeTicks > 0;
     }
 
+    public static FireSnakeCycle advanceFireSnakeCycle(
+            boolean secondPhase, int activeTicks, int cooldownTicks,
+            int configuredDuration, int configuredCooldown) {
+        if (!secondPhase) {
+            return new FireSnakeCycle(0, 0, false, false);
+        }
+        if (activeTicks > 0) {
+            int remaining = activeTicks - 1;
+            return new FireSnakeCycle(
+                    remaining,
+                    remaining == 0 ? Math.max(0, configuredCooldown) : 0,
+                    false, remaining == 0);
+        }
+        if (cooldownTicks > 0) {
+            int remaining = cooldownTicks - 1;
+            if (remaining > 0) {
+                return new FireSnakeCycle(0, remaining, false, false);
+            }
+        }
+        return new FireSnakeCycle(
+                Math.max(1, configuredDuration), 0, true, false);
+    }
+
     public record HorizontalPoint(double x, double z) {
+    }
+
+    public record FireSnakeCycle(
+            int activeTicks, int cooldownTicks,
+            boolean started, boolean ended) {
     }
 
     private static void addIfReady(

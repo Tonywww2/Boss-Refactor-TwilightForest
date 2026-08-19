@@ -1,13 +1,38 @@
 package com.tonywww.bossrefactortf.boss.naga;
 
 public enum NagaSkill {
-    NONE,
-    POUNCE,
-    TAIL_SWEEP,
-    VENOM_BREATH;
+    NONE("none"),
+    CHARGE("charge"),
+    POUNCE("pounce"),
+    VENOM_BREATH("venom_breath");
 
-    public static NagaSkill byId(int id) {
-        NagaSkill[] values = values();
-        return id >= 0 && id < values.length ? values[id] : NONE;
+    private final String id;
+
+    NagaSkill(String id) {
+        this.id = id;
+    }
+
+    public String id() {
+        return id;
+    }
+
+    public static NagaSkill byId(String id) {
+        if (id.equals("tail_sweep")) {
+            return NONE;
+        }
+        for (NagaSkill skill : values()) {
+            if (skill.id.equals(id)) {
+                return skill;
+            }
+        }
+        return NONE;
+    }
+
+    public static NagaSkill fromLegacyOrdinal(int ordinal) {
+        return switch (ordinal) {
+            case 1 -> POUNCE;
+            case 3 -> VENOM_BREATH;
+            default -> NONE;
+        };
     }
 }

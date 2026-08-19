@@ -3,6 +3,7 @@ package com.tonywww.bossrefactortf.mixin.boss;
 import com.tonywww.bossrefactortf.boss.TwilightBossParryAccess;
 import com.tonywww.bossrefactortf.boss.naga.NagaCombat;
 import com.tonywww.bossrefactortf.boss.naga.NagaCombatAccess;
+import com.tonywww.bossrefactortf.boss.naga.NagaChargeAttackGoal;
 import com.tonywww.bossrefactortf.boss.naga.NagaCombatGoal;
 import com.tonywww.bossrefactortf.boss.naga.NagaCombatState;
 import com.tonywww.bossrefactortf.boss.naga.NagaBodyController;
@@ -26,17 +27,23 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.ai.goal.WrappedGoal;
 import net.minecraft.world.entity.monster.Monster;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.ShieldItem;
 import net.minecraft.world.level.Level;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Group;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import twilightforest.entity.boss.Naga;
 import twilightforest.entity.boss.NagaSegment;
+import twilightforest.entity.ai.goal.NagaMovementPattern;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
@@ -89,6 +96,14 @@ public abstract class NagaMixin extends Monster
     @Unique
     private final NagaBodyState bossRefactorTF$bodyState =
             new NagaBodyState();
+    @Unique
+    @Nullable
+    private NagaMovementPattern bossRefactorTF$movementPattern;
+    @Unique
+    @Nullable
+    private ServerPlayer bossRefactorTF$chargeShieldPlayer;
+    @Unique
+    private ItemStack bossRefactorTF$chargeShield = ItemStack.EMPTY;
 
     protected NagaMixin(
             EntityType<? extends Monster> entityType, Level level) {
@@ -104,19 +119,28 @@ public abstract class NagaMixin extends Monster
             return;
         }
         List<Goal> replacedGoals = new ArrayList<>();
+        List<WrappedGoal> chargeAttackGoals = new ArrayList<>();
         List<WrappedGoal> guardedGoals = new ArrayList<>();
         for (WrappedGoal wrappedGoal : goalSelector.getAvailableGoals()) {
             Goal goal = wrappedGoal.getGoal();
             String goalName = goal.getClass().getSimpleName();
-            if (goalName.equals("NagaMovementPattern")
-                    || goalName.equals("SimplifiedAttackGoal")
-                    || goalName.equals("SimplifiedMeleeAttackGoal")) {
+            if (goal instanceof NagaMovementPattern movementPattern) {
+                bossRefactorTF$movementPattern = movementPattern;
                 replacedGoals.add(goal);
+            } else if (goalName.equals("SimplifiedAttackGoal")
+                    || goalName.equals("SimplifiedMeleeAttackGoal")) {
+                chargeAttackGoals.add(wrappedGoal);
             } else if (goalName.equals("NagaSmashGoal")) {
                 guardedGoals.add(wrappedGoal);
             }
         }
         replacedGoals.forEach(goalSelector::removeGoal);
+        for (WrappedGoal chargeAttackGoal : chargeAttackGoals) {
+            goalSelector.removeGoal(chargeAttackGoal.getGoal());
+            goalSelector.addGoal(chargeAttackGoal.getPriority(),
+                    new NagaChargeAttackGoal(
+                            bossRefactorTF$self(), chargeAttackGoal.getGoal()));
+        }
         for (WrappedGoal guardedGoal : guardedGoals) {
             goalSelector.removeGoal(guardedGoal.getGoal());
             goalSelector.addGoal(guardedGoal.getPriority(),
@@ -154,10 +178,7 @@ public abstract class NagaMixin extends Monster
         }
         NagaBodyController.tick(
                 bossRefactorTF$self(), bodySegments, bossRefactorTF$bodyState,
-                bossRefactorTF$getBodyPose(),
-                bossRefactorTF$getBodyPoseProgress(),
-                bossRefactorTF$getBodyDirectionX(),
-                bossRefactorTF$getBodyDirectionZ());
+            bossRefactorTF$getBodyPose());
         callback.cancel();
     }
 
@@ -166,8 +187,64 @@ public abstract class NagaMixin extends Monster
             at = @At("HEAD"), cancellable = true, remap = false)
     private void bossRefactorTF$blockAttackWhileStunned(
             Entity target, CallbackInfoReturnable<Boolean> callback) {
+        bossRefactorTF$chargeShieldPlayer = null;
+        bossRefactorTF$chargeShield = ItemStack.EMPTY;
         if (NagaCombat.isStunned(bossRefactorTF$self())) {
             callback.setReturnValue(false);
+            return;
+        }
+        if (!NagaCombat.isCharging(bossRefactorTF$self())
+                || !(target instanceof ServerPlayer player)) {
+            return;
+        }
+        ItemStack shield = player.getUseItem();
+        if (NagaCombat.isChargeShieldBlock(
+                bossRefactorTF$self(),
+                shield.getItem() instanceof ShieldItem,
+            bossRefactorTF$isDirectionallyBlocking(player))) {
+            bossRefactorTF$chargeShieldPlayer = player;
+            bossRefactorTF$chargeShield = shield.copy();
+        }
+    }
+
+        @Group(name = "directionalChargeShield", min = 1, max = 1)
+        @Redirect(
+            method = {"doHurtTarget", "m_7327_"},
+            at = @At(
+                value = "INVOKE",
+                target = "Lnet/minecraft/world/entity/LivingEntity;isBlocking()Z"),
+            require = 0,
+            remap = false)
+        private boolean bossRefactorTF$directionalChargeShieldMcp(
+            LivingEntity target) {
+        return bossRefactorTF$isDirectionallyBlocking(target);
+        }
+
+        @Group(name = "directionalChargeShield", min = 1, max = 1)
+        @Redirect(
+            method = {"doHurtTarget", "m_7327_"},
+            at = @At(
+                value = "INVOKE",
+                target = "Lnet/minecraft/world/entity/LivingEntity;m_21254_()Z"),
+            require = 0,
+            remap = false)
+        private boolean bossRefactorTF$directionalChargeShieldSrg(
+            LivingEntity target) {
+        return bossRefactorTF$isDirectionallyBlocking(target);
+        }
+
+    @Inject(
+            method = {"doHurtTarget", "m_7327_"},
+            at = @At("RETURN"), remap = false)
+    private void bossRefactorTF$handleBlockedCharge(
+            Entity target, CallbackInfoReturnable<Boolean> callback) {
+        ServerPlayer player = bossRefactorTF$chargeShieldPlayer;
+        ItemStack shield = bossRefactorTF$chargeShield;
+        bossRefactorTF$chargeShieldPlayer = null;
+        bossRefactorTF$chargeShield = ItemStack.EMPTY;
+        if (player != null) {
+            NagaCombat.onChargeShieldBlocked(
+                    bossRefactorTF$self(), player, shield);
         }
     }
 
@@ -188,7 +265,9 @@ public abstract class NagaMixin extends Monster
             CompoundTag tag, CallbackInfo callback) {
         if (tag.contains("BossRefactorTFNagaCombat", Tag.TAG_COMPOUND)) {
             bossRefactorTF$combatState.load(
-                    tag.getCompound("BossRefactorTFNagaCombat"));
+                    tag.getCompound("BossRefactorTFNagaCombat"),
+                    BossRefactorTwilightForestConfig.NAGA
+                            .fireSnakeCooldownTicks.get());
         }
         NagaCombat.restoreVisualState(bossRefactorTF$self());
     }
@@ -196,6 +275,12 @@ public abstract class NagaMixin extends Monster
     @Override
     public NagaCombatState bossRefactorTF$getNagaCombatState() {
         return bossRefactorTF$combatState;
+    }
+
+    @Override
+    @Nullable
+    public NagaMovementPattern bossRefactorTF$getMovementPattern() {
+        return bossRefactorTF$movementPattern;
     }
 
     @Override
@@ -336,6 +421,20 @@ public abstract class NagaMixin extends Monster
                 && NagaCombat.acceptParry(bossRefactorTF$self())
                 ? feedbackTicks
                 : 0;
+    }
+
+    @Unique
+    private boolean bossRefactorTF$isDirectionallyBlocking(
+            LivingEntity target) {
+        if (!target.isBlocking()) {
+            return false;
+        }
+        if (!(target instanceof ServerPlayer player)
+                || !NagaCombat.isCharging(bossRefactorTF$self())) {
+            return true;
+        }
+        return player.isDamageSourceBlocked(
+                damageSources().mobAttack(bossRefactorTF$self()));
     }
 
     @Unique
