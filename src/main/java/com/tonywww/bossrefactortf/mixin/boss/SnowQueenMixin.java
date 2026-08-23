@@ -3,11 +3,13 @@ package com.tonywww.bossrefactortf.mixin.boss;
 import com.tonywww.bossrefactortf.boss.TwilightBossParryAccess;
 import com.tonywww.bossrefactortf.boss.snowqueen.SnowQueenCombat;
 import com.tonywww.bossrefactortf.boss.snowqueen.SnowQueenCombatAccess;
+import com.tonywww.bossrefactortf.boss.snowqueen.SnowQueenCombatRules;
 import com.tonywww.bossrefactortf.boss.snowqueen.SnowQueenCombatState;
 import com.tonywww.bossrefactortf.config.BossRefactorTwilightForestConfig;
 import com.tonywww.bossrefactortf.telegraph.AttackTelegraph;
 import com.tonywww.bossrefactortf.telegraph.AttackTelegraphAccess;
 import com.tonywww.bossrefactortf.telegraph.AttackTelegraphNbt;
+import com.tonywww.bossrefactortf.telegraph.AttackTelegraphShape;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.syncher.EntityDataAccessor;
@@ -24,12 +26,16 @@ import net.minecraft.world.phys.Vec3;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Constant;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.ModifyConstant;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import twilightforest.entity.boss.SnowQueen;
 
 import javax.annotation.Nullable;
+import java.util.ArrayList;
+import java.util.List;
 
 @Mixin(value = SnowQueen.class, remap = false)
 public abstract class SnowQueenMixin extends Monster
@@ -71,6 +77,10 @@ public abstract class SnowQueenMixin extends Monster
     private static final EntityDataAccessor<CompoundTag> BOSS_REFACTOR_TF$TELEGRAPH =
             SynchedEntityData.defineId(
                     SnowQueen.class, EntityDataSerializers.COMPOUND_TAG);
+        @Unique
+        private static final EntityDataAccessor<CompoundTag> BOSS_REFACTOR_TF$DROP_TELEGRAPH =
+            SynchedEntityData.defineId(
+                SnowQueen.class, EntityDataSerializers.COMPOUND_TAG);
 
     @Unique
     private final SnowQueenCombatState bossRefactorTF$combatState =
@@ -97,6 +107,9 @@ public abstract class SnowQueenMixin extends Monster
         getEntityData().define(
                 BOSS_REFACTOR_TF$TELEGRAPH,
                 AttackTelegraphNbt.encode(AttackTelegraph.NONE));
+        getEntityData().define(
+            BOSS_REFACTOR_TF$DROP_TELEGRAPH,
+            AttackTelegraphNbt.encode(AttackTelegraph.NONE));
     }
 
     @Inject(
@@ -125,6 +138,35 @@ public abstract class SnowQueenMixin extends Monster
         if (SnowQueenCombat.customCombatActive(bossRefactorTF$self())) {
             callback.cancel();
         }
+    }
+
+    @Inject(
+            method = {"doHurtTarget", "m_7327_"},
+            at = @At("HEAD"),
+            cancellable = true,
+            remap = false)
+    private void bossRefactorTF$scaleDropContactDamage(
+            Entity target, CallbackInfoReturnable<Boolean> callback) {
+        SnowQueen queen = bossRefactorTF$self();
+        if (SnowQueenCombat.customCombatActive(queen)
+                && queen.getCurrentPhase() == SnowQueen.Phase.DROP) {
+            callback.setReturnValue(
+                    SnowQueenCombat.attackOriginalDropContact(queen, target));
+        }
+    }
+
+    @ModifyConstant(
+            method = "setCurrentPhase",
+            constant = @Constant(intValue = 3),
+            require = 1,
+            remap = false)
+    private int bossRefactorTF$limitDropCount(int originalBound) {
+        if (!SnowQueenCombat.customCombatActive(bossRefactorTF$self())) {
+            return originalBound;
+        }
+        return SnowQueenCombatRules.configuredDropRandomBound(
+                BossRefactorTwilightForestConfig.SNOW_QUEEN
+                        .dropMaximumSuccessfulDrops.get());
     }
 
     @Inject(
@@ -297,6 +339,22 @@ public abstract class SnowQueenMixin extends Monster
     }
 
     @Override
+    public List<AttackTelegraph> bossRefactorTF$getAttackTelegraphs() {
+        List<AttackTelegraph> telegraphs = new ArrayList<>(2);
+        AttackTelegraph sidecar = AttackTelegraphNbt.decode(
+                getEntityData().get(BOSS_REFACTOR_TF$TELEGRAPH));
+        AttackTelegraph drop = AttackTelegraphNbt.decode(
+                getEntityData().get(BOSS_REFACTOR_TF$DROP_TELEGRAPH));
+        if (sidecar.shape() != AttackTelegraphShape.NONE) {
+            telegraphs.add(sidecar);
+        }
+        if (drop.shape() != AttackTelegraphShape.NONE) {
+            telegraphs.add(drop);
+        }
+        return telegraphs;
+    }
+
+    @Override
     public void bossRefactorTF$setAttackTelegraph(
             AttackTelegraph telegraph) {
         bossRefactorTF$setSnowQueenTelegraph(telegraph);
@@ -307,6 +365,14 @@ public abstract class SnowQueenMixin extends Monster
             AttackTelegraph telegraph) {
         getEntityData().set(
                 BOSS_REFACTOR_TF$TELEGRAPH,
+                AttackTelegraphNbt.encode(telegraph));
+    }
+
+    @Override
+    public void bossRefactorTF$setSnowQueenDropTelegraph(
+            AttackTelegraph telegraph) {
+        getEntityData().set(
+                BOSS_REFACTOR_TF$DROP_TELEGRAPH,
                 AttackTelegraphNbt.encode(telegraph));
     }
 

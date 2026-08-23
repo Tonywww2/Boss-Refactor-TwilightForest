@@ -28,6 +28,7 @@ public final class HydraHeadAnimation {
         head.y = baseY;
         head.z = baseZ;
         head.zRot = baseZRot;
+        head.yRot = interpolatedHeadYaw(headEntity, partialTick);
 
         Hydra hydra = headEntity.getParent();
         if (hydra == null || !(hydra instanceof HydraCombatAccess access)) {
@@ -63,9 +64,12 @@ public final class HydraHeadAnimation {
                 0.0F, 1.0F,
                 animationProgress / recoveryStart)
             : 1.0F;
-        aimAtLockedPoint(
-            headEntity, head, access,
-            aimWeight(skill, progress) * blend);
+        float aimWeight = aimWeight(skill, progress) * blend;
+        if (skill == HydraSkill.SWEEP) {
+            aimAtLockedDirection(head, access, aimWeight);
+        } else {
+            aimAtLockedPoint(headEntity, head, access, aimWeight);
+        }
         switch (skill) {
             case BITE -> applyBite(head, mouth, progress, blend);
             case SWEEP -> applySweep(head, mouth, progress, blend);
@@ -141,6 +145,20 @@ public final class HydraHeadAnimation {
                 Mth.clamp(desiredPitch, -1.15F, 1.15F));
     }
 
+    private static void aimAtLockedDirection(
+            ModelPart head, HydraCombatAccess access, float weight) {
+        if (weight <= 0.0F) {
+            return;
+        }
+        double directionX = access.bossRefactorTF$getVisibleHydraDirectionX();
+        double directionZ = access.bossRefactorTF$getVisibleHydraDirectionZ();
+        if (directionX * directionX + directionZ * directionZ < 1.0E-6) {
+            return;
+        }
+        float desiredYaw = (float) Math.atan2(-directionX, directionZ);
+        head.yRot = lerpRadians(head.yRot, desiredYaw, weight);
+    }
+
     private static void applyBite(
             ModelPart head, ModelPart mouth, float progress, float blend) {
         float open = smoothStep(0.02F, 0.38F, progress);
@@ -199,6 +217,7 @@ public final class HydraHeadAnimation {
     private static float aimWeight(HydraSkill skill, float progress) {
         return switch (skill) {
             case BITE -> smoothStep(0.25F, 0.55F, progress);
+            case SWEEP -> smoothStep(0.0F, 0.2F, progress);
             case FIRE_LORD -> smoothStep(0.0F, 0.18F, progress);
             case EVIL_FIREBALL -> smoothStep(0.0F, 0.28F, progress);
             default -> 0.0F;
@@ -217,6 +236,16 @@ public final class HydraHeadAnimation {
                 (end - start) / DEGREES_TO_RADIANS)
                 * DEGREES_TO_RADIANS;
         return start + delta * progress;
+    }
+
+    private static float interpolatedHeadYaw(
+            HydraHead headEntity, float partialTick) {
+        float previousYaw = headEntity.yRotO;
+        float yawDelta = Mth.wrapDegrees(
+                headEntity.getYRot() - previousYaw);
+        return (previousYaw + yawDelta
+                * Mth.clamp(partialTick, 0.0F, 1.0F))
+                * DEGREES_TO_RADIANS;
     }
 
     private static final class ProgressSample {

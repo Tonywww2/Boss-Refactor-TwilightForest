@@ -8,6 +8,7 @@ import com.tonywww.bossrefactortf.boss.alphayeti.AlphaYetiFallingIceAccess;
 import com.tonywww.bossrefactortf.config.BossRefactorTwilightForestConfig;
 import com.tonywww.bossrefactortf.telegraph.AttackTelegraph;
 import com.tonywww.bossrefactortf.telegraph.AttackTelegraphShape;
+import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -31,12 +32,16 @@ import twilightforest.entity.monster.BaseIceMob;
 import twilightforest.entity.monster.StableIceCore;
 import twilightforest.entity.monster.UnstableIceCore;
 import twilightforest.entity.projectile.FallingIce;
+import twilightforest.init.TFDamageTypes;
 import twilightforest.init.TFEntities;
 import twilightforest.init.TFMobEffects;
+import twilightforest.init.TFSounds;
+import twilightforest.util.EntityUtil;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Set;
 import java.util.UUID;
 
 public final class SnowQueenCombat {
@@ -46,12 +51,16 @@ public final class SnowQueenCombat {
         "0e1e5dfa-e497-4f58-8029-20968a38f563");
     private static final UUID PHASE_FLYING_MODIFIER_ID = UUID.fromString(
         "66e2fa9f-60c7-4dfa-bd0a-b26595b8315d");
+    private static final UUID DROP_DAMAGE_MODIFIER_ID = UUID.fromString(
+            "c16e6db7-ef61-4528-af36-1b33636f433c");
     private static final String PHASE_ATTACK_MODIFIER_NAME =
         "BossRefactorTF Snow Queen phase attack";
     private static final String PHASE_MOVEMENT_MODIFIER_NAME =
         "BossRefactorTF Snow Queen phase movement";
     private static final String PHASE_FLYING_MODIFIER_NAME =
         "BossRefactorTF Snow Queen phase flying";
+    private static final String DROP_DAMAGE_MODIFIER_NAME =
+            "BossRefactorTF Snow Queen drop damage";
 
     private SnowQueenCombat() {
     }
@@ -73,19 +82,18 @@ public final class SnowQueenCombat {
         SnowQueenCombatState state = state(queen);
         checkSecondPhase(queen, state);
         pruneSummonReferences(queen, state);
-        if (queen.getCurrentPhase() == SnowQueen.Phase.SUMMON
-                && !state.rainRoundActive
-                && !state.rainRoundCompleted) {
+        if (!state.rainRoundActive && state.rainCooldownRemaining > 0) {
+            state.rainCooldownRemaining--;
+        }
+        if (!state.rainRoundActive
+                && state.rainCooldownRemaining <= 0
+                && queen.getCurrentPhase() != SnowQueen.Phase.DROP) {
             beginRainRound(state);
         }
         tickRainRound(queen, state);
         tickLinkEstablishment(queen, state);
         tickLinkDeathSidecar(queen, state);
         tickFallingIce(queen, state);
-        if (queen.getCurrentPhase() != SnowQueen.Phase.SUMMON
-                && !state.rainRoundActive) {
-            state.rainRoundCompleted = false;
-        }
         synchronizeParryWindow(queen);
     }
 
@@ -124,8 +132,10 @@ public final class SnowQueenCombat {
             return;
         }
         state.rainRoundActive = false;
-        state.rainRoundCompleted = true;
         state.rainVolleySpawned = false;
+        state.rainCooldownRemaining =
+            BossRefactorTwilightForestConfig.SNOW_QUEEN
+                .shatteredIceRainCooldownTicks.get();
     }
 
     public static void tickBaseTraits(SnowQueen queen) {
@@ -251,6 +261,8 @@ public final class SnowQueenCombat {
                 state.secondPhase);
         access(queen).bossRefactorTF$setSnowQueenTelegraph(
                 state.currentTelegraph);
+        access(queen).bossRefactorTF$setSnowQueenDropTelegraph(
+            state.dropTelegraph);
         if (!queen.level().isClientSide()) {
             synchronizePhaseModifiers(
                 queen, customCombatEnabled() && state.secondPhase);
@@ -649,6 +661,14 @@ public final class SnowQueenCombat {
         private static void damageCircle(
             SnowQueen queen, double x, double y, double z,
             double radius, float damage, boolean hitsNonPlayers) {
+        damageCircle(
+                queen, x, y, z, radius, damage, hitsNonPlayers, Set.of());
+        }
+
+        private static void damageCircle(
+            SnowQueen queen, double x, double y, double z,
+            double radius, float damage, boolean hitsNonPlayers,
+            Set<UUID> excludedTargets) {
         AABB bounds = new AABB(
                 x - radius, y - radius, z - radius,
                 x + radius, y + radius, z + radius);
@@ -657,6 +677,9 @@ public final class SnowQueenCombat {
                 LivingEntity.class, bounds,
                 candidate -> isSkillTarget(
                         queen, candidate, hitsNonPlayers))) {
+            if (excludedTargets.contains(target.getUUID())) {
+                continue;
+            }
             if (!SnowQueenCombatRules.isInsideCircle(
                     target.getX(), target.getZ(), x, z, radius)) {
                 continue;
@@ -944,7 +967,13 @@ public final class SnowQueenCombat {
 
     private static void tickFallingIce(
             SnowQueen queen, SnowQueenCombatState state) {
-        if (!state.secondPhase) {
+        if (!state.secondPhase
+                || queen.getCurrentPhase() != SnowQueen.Phase.BEAM) {
+            if (state.fallingIcePending) {
+                state.fallingIcePending = false;
+                state.fallingIceVisualSpawned = false;
+            }
+            clearTelegraph(queen);
             return;
         }
         BossRefactorTwilightForestConfig.SnowQueenConfig config =
@@ -997,6 +1026,137 @@ public final class SnowQueenCombat {
                 config.fallingIceWindupTicks.get());
         clearTelegraph(queen);
     }
+
+        public static void beginOriginalDropTelegraph(
+            SnowQueen queen, double x, double y, double z) {
+        if (!customCombatEnabled() || queen.level().isClientSide()) {
+            return;
+        }
+        SnowQueenCombatState state = state(queen);
+        state.dropDirectHits.clear();
+        state.dropTelegraph = new AttackTelegraph(
+            AttackTelegraphShape.CIRCLE,
+            (float) x, (float) y, (float) z,
+            0.0F, 1.0F, 0.0F, 0.0F,
+            BossRefactorTwilightForestConfig.SNOW_QUEEN
+                .dropTelegraphRadius.get().floatValue(),
+            0.0F);
+        access(queen).bossRefactorTF$setSnowQueenDropTelegraph(
+            state.dropTelegraph);
+        if (BossRefactorTwilightForestConfig.SNOW_QUEEN
+            .dropWarningSoundEnabled.get()) {
+            queen.playSound(
+                TFSounds.SNOW_QUEEN_ATTACK.get(),
+                BossRefactorTwilightForestConfig.SNOW_QUEEN
+                    .dropWarningSoundVolume.get().floatValue(),
+                1.0F);
+        }
+        }
+
+        public static void updateOriginalDropTelegraph(
+            SnowQueen queen, int hoverTicks, int maximumHoverTicks,
+            boolean dropping) {
+        if (!customCombatEnabled() || queen.level().isClientSide()) {
+            return;
+        }
+        SnowQueenCombatState state = state(queen);
+        if (state.dropTelegraph.shape() == AttackTelegraphShape.NONE) {
+            return;
+        }
+        state.dropTelegraph = state.dropTelegraph.withProgress(
+            dropping
+                ? 1.0F
+                : AttackTelegraph.windupProgress(
+                    hoverTicks, maximumHoverTicks));
+        access(queen).bossRefactorTF$setSnowQueenDropTelegraph(
+            state.dropTelegraph);
+        emitDropWarningParticles(queen, state.dropTelegraph);
+        }
+
+        public static void completeOriginalDrop(SnowQueen queen) {
+        if (!customCombatEnabled() || queen.level().isClientSide()) {
+            return;
+        }
+        AttackTelegraph telegraph = state(queen).dropTelegraph;
+        if (telegraph.shape() != AttackTelegraphShape.NONE) {
+            damageCircle(
+                queen,
+                telegraph.originX(), telegraph.originY(),
+                telegraph.originZ(),
+                BossRefactorTwilightForestConfig.SNOW_QUEEN
+                    .dropTelegraphRadius.get(),
+                skillDamage(
+                    queen,
+                    BossRefactorTwilightForestConfig.SNOW_QUEEN
+                        .dropDamageMultiplier.get()),
+                BossRefactorTwilightForestConfig.SNOW_QUEEN
+                    .dropHitsNonPlayers.get(),
+                state(queen).dropDirectHits);
+        }
+        clearOriginalDropTelegraph(queen);
+        }
+
+        public static void clearOriginalDropTelegraph(SnowQueen queen) {
+        SnowQueenCombatState state = state(queen);
+        state.dropTelegraph = AttackTelegraph.NONE;
+        state.dropDirectHits.clear();
+        access(queen).bossRefactorTF$setSnowQueenDropTelegraph(
+            AttackTelegraph.NONE);
+        }
+
+        public static boolean attackOriginalDropContact(
+            SnowQueen queen, Entity target) {
+        SnowQueenCombatState state = state(queen);
+        state.dropDirectHits.add(target.getUUID());
+        AttributeInstance attackDamage = queen.getAttribute(
+            Attributes.ATTACK_DAMAGE);
+        if (attackDamage == null) {
+            return false;
+        }
+        attackDamage.removeModifier(DROP_DAMAGE_MODIFIER_ID);
+        double multiplier = BossRefactorTwilightForestConfig.SNOW_QUEEN
+            .dropDamageMultiplier.get();
+        boolean scaled = Double.compare(multiplier, 1.0) != 0;
+        if (scaled) {
+            attackDamage.addTransientModifier(new AttributeModifier(
+                DROP_DAMAGE_MODIFIER_ID,
+                DROP_DAMAGE_MODIFIER_NAME,
+                multiplier - 1.0,
+                AttributeModifier.Operation.MULTIPLY_TOTAL));
+        }
+        try {
+            DamageSource source = TFDamageTypes.getEntityDamageSource(
+                queen.level(), TFDamageTypes.SQUISH, queen,
+                TFEntities.SNOW_QUEEN.get());
+            return EntityUtil.properlyApplyCustomDamageSource(
+                queen, target, source);
+        } finally {
+            if (scaled) {
+                attackDamage.removeModifier(DROP_DAMAGE_MODIFIER_ID);
+            }
+        }
+        }
+
+        private static void emitDropWarningParticles(
+            SnowQueen queen, AttackTelegraph telegraph) {
+        if (!(queen.level() instanceof ServerLevel level)) {
+            return;
+        }
+        int count = BossRefactorTwilightForestConfig.SNOW_QUEEN
+            .dropSnowflakeParticlesPerTick.get();
+        double radius = BossRefactorTwilightForestConfig.SNOW_QUEEN
+            .dropTelegraphRadius.get();
+        for (int index = 0; index < count; index++) {
+            double angle = Math.PI * 2.0 * index / Math.max(1, count)
+                + queen.tickCount * 0.12;
+            level.sendParticles(
+                ParticleTypes.SNOWFLAKE,
+                telegraph.originX() + Math.cos(angle) * radius,
+                telegraph.originY() + 0.15,
+                telegraph.originZ() + Math.sin(angle) * radius,
+                1, 0.0, 0.02, 0.0, 0.0);
+        }
+        }
 
     private static void spawnFallingIceVisuals(
             SnowQueen queen, SnowQueenCombatState state) {

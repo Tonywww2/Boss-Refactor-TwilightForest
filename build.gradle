@@ -128,6 +128,8 @@ dependencies {
             'src/main/java/com/tonywww/bossrefactortf/boss/hydra/HydraCombatState.java')
         def fireball = file(
             'src/main/java/com/tonywww/bossrefactortf/boss/hydra/HydraEvilFireball.java')
+        def mortarMixin = file(
+            'src/main/java/com/tonywww/bossrefactortf/mixin/boss/HydraMortarMixin.java')
         def entityRegistry = file(
             'src/main/java/com/tonywww/bossrefactortf/registry/BossRefactorTwilightForestEntities.java')
         def mixinConfig = file('src/main/resources/bossrefactortf.mixins.json')
@@ -137,13 +139,16 @@ dependencies {
             'src/main/resources/data/minecraft/tags/damage_type/is_fire.json')
         def hydraDamageType = file(
             'src/main/resources/data/bossrefactortf/damage_type/hydra_evil_fire.json')
+        def hydraPhysicalDamageType = file(
+            'src/main/resources/data/bossrefactortf/damage_type/hydra_physical.json')
         def hydraConfig = file(
             'src/main/java/com/tonywww/bossrefactortf/config/BossRefactorTwilightForestConfig.java')
         inputs.files(
             hydraMixin, containerMixin, legacyRendererMixin,
             newRendererMixin, combat, combatRules, combatState, fireball,
+            mortarMixin,
             entityRegistry, mixinConfig, bypassesShield, isFire,
-            hydraDamageType, hydraConfig)
+            hydraDamageType, hydraPhysicalDamageType, hydraConfig)
         doLast {
             def requirements = [
                 (hydraMixin): [
@@ -169,7 +174,9 @@ dependencies {
                     'stateYRotations, 6, 8, -30.0F',
                     'method = "setNeckPosition()V"',
                     'headNum != 7 && headNum != 8',
-                    'headNum == 7 ? 165.0F : -165.0F'
+                    'headNum == 7 ? 165.0F : -165.0F',
+                    '@Group(name = "mixedFlameBreathDamage", min = 1, max = 1)',
+                    'HydraCombat.hurtWithMixedFire('
                 ],
                 (legacyRendererMixin): ['method = "getHeadObject"', 'return 9;'],
                 (newRendererMixin): ['method = "getHeadObject"', 'return 9;'],
@@ -199,20 +206,33 @@ dependencies {
                     'ProjectileUtil.getHitResultOnMoveVector(',
                     'if (isRemoved()) {',
                     'setLockedDirection(',
+                    'updateTrackingDirection();',
+                    'evilFireballTrackingTurnDegrees',
                     'discard();',
                     'Math.max(20, auraInterval)',
                     'evilFireballAuraIntervalTicks',
                     'addAdditionalSaveData(CompoundTag tag)'
                 ],
                 (hydraConfig): [
-                    '"aura_interval_ticks", 20, 20, 1200'
+                    '"aura_interval_ticks", 20, 20, 1200',
+                    '"aura_damage_multiplier", 1.0',
+                    '"fire_physical_damage_fraction", 0.3',
+                    '"tracking_turn_degrees_per_tick", 6.0'
+                ],
+                (mortarMixin): [
+                    '@Group(name = "mixedMortarDamage", min = 1, max = 1)',
+                    'method = "detonate"',
+                    'HydraCombat.hurtWithMixedFire('
                 ],
                 (entityRegistry): ['"hydra_evil_fireball"'],
                 (mixinConfig): [
                     'client.HydraHeadRendererMixin',
                     'client.NewHydraHeadRendererMixin'
                 ],
-                (bypassesShield): ['bossrefactortf:hydra_evil_fire']
+                (bypassesShield): [
+                    'bossrefactortf:hydra_evil_fire',
+                    'bossrefactortf:hydra_physical'
+                ]
             ]
             def missing = []
             requirements.each { source, fragments ->
@@ -297,9 +317,12 @@ dependencies {
             }
 
             def vanillaAttackOwnershipFailures = []
-            if (containerMixinText.contains('method = "executeAttacks"')) {
+                if (containerMixinText.contains(
+                    'bossRefactorTF$disableVanillaAttackExecution')
+                    || containerMixinText.contains(
+                        'private void bossRefactorTF$disableVanillaAttack')) {
                 vanillaAttackOwnershipFailures.add(
-                    'HydraHeadContainer.executeAttacks must remain fully vanilla')
+                    'HydraHeadContainer.executeAttacks must not be cancelled')
             }
             if (!hydraMixinText.contains(
                     'HydraCombat.shouldSuppressVanillaAttackSelection(')) {
@@ -613,6 +636,10 @@ tasks.register('verifyMixinRefmapContract') {
         'src/main/java/com/tonywww/bossrefactortf/mixin/boss/MinoshroomMixin.java')
     def snowQueenMixinFile = file(
         'src/main/java/com/tonywww/bossrefactortf/mixin/boss/SnowQueenMixin.java')
+    def hoverBaseGoalMixinFile = file(
+        'src/main/java/com/tonywww/bossrefactortf/mixin/boss/HoverBaseGoalMixin.java')
+    def hoverThenDropGoalMixinFile = file(
+        'src/main/java/com/tonywww/bossrefactortf/mixin/boss/HoverThenDropGoalMixin.java')
     def stableIceCoreMixinFile = file(
         'src/main/java/com/tonywww/bossrefactortf/mixin/boss/StableIceCoreMixin.java')
     def unstableIceCoreMixinFile = file(
@@ -635,6 +662,8 @@ tasks.register('verifyMixinRefmapContract') {
         'src/main/java/com/tonywww/bossrefactortf/mixin/boss/HydraMixin.java')
     def hydraHeadContainerMixinFile = file(
         'src/main/java/com/tonywww/bossrefactortf/mixin/boss/HydraHeadContainerMixin.java')
+    def hydraMortarMixinFile = file(
+        'src/main/java/com/tonywww/bossrefactortf/mixin/boss/HydraMortarMixin.java')
     def hydraHeadRendererMixinFile = file(
         'src/main/java/com/tonywww/bossrefactortf/mixin/client/HydraHeadRendererMixin.java')
     def newHydraHeadRendererMixinFile = file(
@@ -664,12 +693,13 @@ tasks.register('verifyMixinRefmapContract') {
     inputs.files(mixinConfigFile, generatedRefmapFile,
         attackGoalsMixinFile, formationGoalMixinFile,
         throwWeaponInvokerMixinFile, alphaYetiMixinFile, minoshroomMixinFile,
-        snowQueenMixinFile,
+        snowQueenMixinFile, hoverBaseGoalMixinFile,
+        hoverThenDropGoalMixinFile,
         stableIceCoreMixinFile, unstableIceCoreMixinFile,
         lichMixinFile, lichPhaseGoalMixinFile, lichShadowsGoalMixinFile,
         nagaMixinFile, nagaMovementPatternInvokerMixinFile,
         nagaCombatFile, nagaChargeAttackGoalFile,
-        hydraMixinFile, hydraHeadContainerMixinFile,
+        hydraMixinFile, hydraHeadContainerMixinFile, hydraMortarMixinFile,
         hydraHeadRendererMixinFile, newHydraHeadRendererMixinFile,
         fallingIceMixinFile, urGhastMixinFile,
         urGhastFireballMixinFile, largeFireballTelegraphMixinFile,
@@ -760,8 +790,23 @@ tasks.register('verifyMixinRefmapContract') {
                         'method = {"tick", "m_8119_"}',
                         'method = {"customServerAiStep", "m_8024_"}',
                         'method = "destroyBlocksInAABB"',
+                        'method = {"doHurtTarget", "m_7327_"}',
+                        'method = "setCurrentPhase"',
+                        '@ModifyConstant(',
                         'method = {"addAdditionalSaveData", "m_7380_"}',
                         'method = {"readAdditionalSaveData", "m_7378_"}'
+                    ],
+                (hoverBaseGoalMixinFile):
+                    [
+                        'method = {"start", "m_8056_"}',
+                        'at = @At("TAIL")'
+                    ],
+                (hoverThenDropGoalMixinFile):
+                    [
+                        'method = {"tick", "m_8037_"}',
+                        'method = {"canContinueToUse", "m_8045_"}',
+                        'method = {"stop", "m_8041_"}',
+                        'target = "Ltwilightforest/entity/boss/SnowQueen;incrementSuccessfulDrops()V"'
                     ],
                 (stableIceCoreMixinFile):
                     [
@@ -843,7 +888,17 @@ tasks.register('verifyMixinRefmapContract') {
                         'stateYRotations, 6, 8, -30.0F',
                         'method = "setNeckPosition()V"',
                         'headNum != 7 && headNum != 8',
-                        'headNum == 7 ? 165.0F : -165.0F'
+                        'headNum == 7 ? 165.0F : -165.0F',
+                        '@Group(name = "mixedFlameBreathDamage", min = 1, max = 1)',
+                        'target = "Lnet/minecraft/world/entity/Entity;hurt(',
+                        'target = "Lnet/minecraft/world/entity/Entity;m_6469_('
+                    ],
+                (hydraMortarMixinFile):
+                    [
+                        '@Group(name = "mixedMortarDamage", min = 1, max = 1)',
+                        'method = "detonate"',
+                        'target = "Lnet/minecraft/world/entity/Entity;hurt(',
+                        'target = "Lnet/minecraft/world/entity/Entity;m_6469_('
                     ],
                 (hydraHeadRendererMixinFile):
                     [
@@ -930,6 +985,8 @@ tasks.register('verifyMixinRefmapContract') {
         for (String mixinName : ['boss.AlphaYetiMixin',
                  'boss.MinoshroomMixin',
                  'boss.SnowQueenMixin',
+                 'boss.HoverBaseGoalMixin',
+                 'boss.HoverThenDropGoalMixin',
                  'boss.StableIceCoreMixin',
                  'boss.UnstableIceCoreMixin',
                  'boss.LichMixin',
@@ -938,6 +995,7 @@ tasks.register('verifyMixinRefmapContract') {
                      'boss.NagaMixin',
                      'boss.HydraMixin',
                      'boss.HydraHeadContainerMixin',
+                     'boss.HydraMortarMixin',
                      'boss.FallingIceMixin',
                      'boss.UrGhastMixin',
                      'boss.UrGhastFireballMixin',

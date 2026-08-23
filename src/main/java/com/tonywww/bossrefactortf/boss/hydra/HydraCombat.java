@@ -228,11 +228,16 @@ public final class HydraCombat {
                 state.directionX, 0.0, state.directionZ);
         }
         direction = direction.normalize();
+        if (!(hydra.getTarget() instanceof Player target)
+                || !isRetainableTarget(hydra, target)) {
+            beginRecovery(hydra, state);
+            return;
+        }
         HydraEvilFireball fireball = new HydraEvilFireball(
             BossRefactorTwilightForestEntities.HYDRA_EVIL_FIREBALL.get(),
             hydra.level());
         fireball.initialize(
-            hydra, origin.add(direction.scale(2.0)), direction,
+            hydra, target, origin.add(direction.scale(2.0)), direction,
             state.secondPhase);
         hydra.level().addFreshEntity(fireball);
         hydra.playSound(SoundEvents.FIRECHARGE_USE, 3.0F, 0.55F);
@@ -572,13 +577,12 @@ public final class HydraCombat {
         float damage = attackDamage(hydra) * damageMultiplier;
         int igniteTicks = BossRefactorTwilightForestConfig.HYDRA
             .evilFireballIgniteTicks.get();
-        DamageSource source = HydraDamageTypes.evilFire(fireball, hydra);
         for (LivingEntity target : combatTargets(hydra, bounds)) {
             if (distanceFromPointToAabb(
                 center, target.getBoundingBox()) > radius) {
             continue;
             }
-            target.hurt(source, damage);
+            hurtWithMixedFire(target, fireball, hydra, damage);
             target.setRemainingFireTicks(Math.max(
                 target.getRemainingFireTicks(), igniteTicks));
         }
@@ -640,17 +644,29 @@ public final class HydraCombat {
         float damage = attackDamage(hydra) * damageMultiplier;
         int igniteTicks = BossRefactorTwilightForestConfig.HYDRA
                 .fireIgniteTicks.get();
-        DamageSource source = HydraDamageTypes.evilFire(hydra);
         for (LivingEntity target : combatTargets(hydra, bounds)) {
             if (!HydraCombatRules.isInsideCircle(
                     target.getX(), target.getZ(),
                     center.x, center.z, radius)) {
                 continue;
             }
-            target.hurt(source, damage);
+            hurtWithMixedFire(target, hydra, hydra, damage);
             target.setRemainingFireTicks(Math.max(
                     target.getRemainingFireTicks(), igniteTicks));
         }
+    }
+
+    public static boolean hurtWithMixedFire(
+            net.minecraft.world.entity.Entity target,
+            net.minecraft.world.entity.Entity directEntity,
+            Hydra hydra, float totalDamage) {
+        return HydraDamageTypes.hurtMixedFire(
+                target,
+                HydraDamageTypes.physical(directEntity, hydra),
+                HydraDamageTypes.evilFire(directEntity, hydra),
+                totalDamage,
+                BossRefactorTwilightForestConfig.HYDRA
+                        .firePhysicalDamageFraction.get());
     }
 
     private static void emitFireLordParticles(

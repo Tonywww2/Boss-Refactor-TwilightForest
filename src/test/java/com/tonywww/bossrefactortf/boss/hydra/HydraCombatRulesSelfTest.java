@@ -2,6 +2,7 @@ package com.tonywww.bossrefactortf.boss.hydra;
 
 import com.tonywww.bossrefactortf.config.BossRefactorTwilightForestConfig;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.phys.Vec3;
 
 import java.util.UUID;
 
@@ -22,6 +23,15 @@ public final class HydraCombatRulesSelfTest {
                 1.9, "Fire Lord must add 0.2 per active head");
         checkClose(HydraCombatRules.fireLordMultiplier(0.5F, 0.2F, 9),
                 2.3, "Fire Lord must include both phase-two heads");
+        checkClose(HydraCombatRules.physicalFireDamage(16.0F, 0.3),
+                4.8, "mixed fire damage must use 30% physical damage");
+        checkClose(HydraCombatRules.elementalFireDamage(16.0F, 0.3),
+                11.2, "mixed fire damage must use 70% elemental damage");
+        checkClose(
+                HydraCombatRules.physicalFireDamage(16.0F, 0.3)
+                        + HydraCombatRules.elementalFireDamage(16.0F, 0.3),
+                16.0, "mixed fire damage must preserve total damage");
+        verifyFireballTracking();
 
         check(HydraCombatRules.customMeleeSkill(0) == HydraSkill.SWEEP
                         && HydraCombatRules.customMeleeSkill(1)
@@ -108,6 +118,8 @@ public final class HydraCombatRulesSelfTest {
                 "Hydra base attack damage must default to sixteen");
         checkClose(config.secondPhaseDamageMultiplier.getDefault(), 1.2,
                 "phase-two custom damage must default to 1.2x");
+        checkClose(config.firePhysicalDamageFraction.getDefault(), 0.3,
+                "Hydra fire skills must default to 30% physical damage");
         check(config.ordinaryAttackIntervalTicks.getDefault() == 40,
                 "ordinary attacks must default to a forty-tick interval");
         check(config.biteWindupTicks.getDefault() == 20
@@ -128,13 +140,14 @@ public final class HydraCombatRulesSelfTest {
         check(config.evilFireballWindupTicks.getDefault() == 40
                         && config.evilFireballCooldownTicks.getDefault() == 200
                         && config.evilFireballSpeed.getDefault() == 0.25
+                        && config.evilFireballTrackingTurnDegrees.getDefault() == 6.0
                         && config.evilFireballVisualScale.getDefault() == 4.0
                         && config.evilFireballLifetimeTicks.getDefault() == 200
                         && config.evilFireballIgniteTicks.getDefault() == 100,
                 "evil fireball cadence, speed, scale, and lifetime defaults must remain stable");
         check(config.evilFireballAuraIntervalTicks.getDefault() == 20
                         && config.evilFireballAuraRadius.getDefault() == 3.0
-                        && config.evilFireballAuraDamageMultiplier.getDefault() == 0.6
+                        && config.evilFireballAuraDamageMultiplier.getDefault() == 1.0
                         && config.evilFireballExplosionRadius.getDefault() == 5.0
                         && config.evilFireballExplosionDamageMultiplier.getDefault() == 1.5
                         && config.evilFireballPhaseTwoBeamCount.getDefault() == 3
@@ -283,6 +296,26 @@ public final class HydraCombatRulesSelfTest {
         HydraBeam expiredMalformedBeam = HydraBeam.load(malformedTag);
         check(expiredMalformedBeam.remainingWindupTicks == 1,
                 "expired malformed pending beams must clamp to one remaining tick");
+    }
+
+    private static void verifyFireballTracking() {
+        Vec3 forward = new Vec3(0.0, 0.0, 1.0);
+        Vec3 right = new Vec3(1.0, 0.0, 0.0);
+        Vec3 turned = HydraCombatRules.turnToward(forward, right, 6.0);
+        checkClose(turned.length(), 1.0,
+                "tracked fireball direction must remain normalized");
+        checkClose(Math.toDegrees(Math.acos(forward.dot(turned))), 6.0,
+                "tracked fireball must respect its configured turn rate");
+        check(HydraCombatRules.turnToward(forward, forward, 6.0)
+                        .distanceTo(forward) < 1.0E-6,
+                "aligned targets must not perturb fireball direction");
+        Vec3 reverseTurn = HydraCombatRules.turnToward(
+                forward, forward.reverse(), 6.0);
+        checkClose(Math.toDegrees(Math.acos(forward.dot(reverseTurn))), 6.0,
+                "a target directly behind must still produce a finite turn");
+        check(HydraCombatRules.turnToward(
+                        forward, Vec3.ZERO, 6.0).distanceTo(forward) < 1.0E-6,
+                "an invalid target direction must preserve the last heading");
     }
 
     private static void verifyBeam(

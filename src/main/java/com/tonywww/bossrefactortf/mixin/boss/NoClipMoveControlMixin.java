@@ -44,9 +44,6 @@ public abstract class NoClipMoveControlMixin extends MoveControl {
             && queen.getCurrentPhase() != SnowQueen.Phase.DROP
             && operation == Operation.MOVE_TO
             && queen.getTarget() != null) {
-            wantedY = queen.getTarget().getY()
-                + BossRefactorTwilightForestConfig.SNOW_QUEEN
-                    .chaseHeightOffset.get();
             speedModifier = BossRefactorTwilightForestConfig.SNOW_QUEEN
                 .chaseSpeedMultiplier.get();
                 if (queen instanceof SnowQueenCombatAccess access

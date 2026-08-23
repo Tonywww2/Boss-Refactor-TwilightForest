@@ -48,4 +48,9 @@ public final class SnowQueenCombatRules {
         return Math.max(1,
                 Math.max(1, impactIntervalTicks) - Math.max(0, windupTicks));
     }
+
+    public static int configuredDropRandomBound(
+            int maximumSuccessfulDrops) {
+        return Math.max(1, Math.min(4, maximumSuccessfulDrops) - 1);
+    }
 }

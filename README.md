@@ -57,17 +57,22 @@ values are configured under `minoshroom` in
 `config/bossrefactortf-common.toml`.
 
 The Snow Queen retains every original skill, including its original SUMMON,
-hover, drop, and beam behavior. During each SUMMON phase it additionally creates
-2-4 shattered ice cores, or 3-4 in phase two; they dash in sequence, apply seven
-seconds of Frosty, and retain their original death explosion without breaking
-blocks. Six ice shields at different wave heights orbit with 100% collision
-damage, shield blocking, and SlashBlade parries. Linked owned summons render
-blue lines, gain 30% damage while the queen takes 30% less, and their deaths
-trigger a delayed teleport with a 150% burst. At 50% health or lower, the Snow
-Queen gains 20% damage and speed and creates one falling-ice attack every eight
-seconds. The Snow Queen's block-breaking routine is disabled so its skills
-cannot destroy the arena floor. All Snow Queen mechanics and link visuals are
-configured under `snow_queen` in `config/bossrefactortf-common.toml`.
+hover, drop, and beam behavior. On a twelve-second independent cooldown outside
+DROP, it additionally creates 2-4 shattered ice cores, or 3-4 in phase two;
+they dash in sequence, apply seven seconds of Frosty, and retain their original
+death explosion without breaking blocks. Six ice shields at different wave
+heights orbit with 100% collision damage, shield blocking, and SlashBlade
+parries. Linked owned summons render blue lines, gain 30% damage while the queen
+takes 30% less, and their deaths trigger a delayed teleport with a 150% burst.
+At 50% health or lower, the Snow Queen gains 20% damage and speed. Each DROP
+phase is limited to two successful drops. Original drops lock a three-block
+warning circle, emit a snowflake ring and warning sound, and deal at most one
+100% current-attack-damage hit to each target across contact and impact. Phase-
+two falling ice runs only during the original beam phase, once every eight
+seconds, so summon, drop, and beam retain distinct attack patterns. The Snow
+Queen's block-breaking routine is disabled so its skills cannot destroy the
+arena floor. All Snow Queen mechanics and link visuals are configured under
+`snow_queen` in `config/bossrefactortf-common.toml`.
 
 The Lich is rebuilt as a two-phase fight. Its first phase retains the original
 ranged attacks and initial shield but no longer creates the original automatic
@@ -90,13 +95,14 @@ rotation keeps bite, sweep, slam, and one-head Twilight Forest flame breath.
 The original bite, flame-breath, and mortar scheduling, state chains, targeting,
 damage, and ignition remain owned by The Twilight Forest. Custom head sweeps and
 slams wait for those original head attacks to finish. A separate evil
-fireball locks its direction after a 40-tick windup, moves at 0.25 blocks per
-tick, pulses 0.6 attack damage every 20 ticks in a three-block radius, and
+fireball tracks its locked player after a 40-tick windup, moves at 0.25 blocks
+per tick, pulses 1.0 attack damage every 20 ticks in a three-block radius, and
 explodes for 1.5 attack damage in a five-block radius without breaking blocks.
 Phase-two explosions create three locked flame beams nearby. Fire Lord opens
 all active heads for 200 ticks and deals `attack * (0.5 + heads * 0.2)` every
-20 ticks. Flame breath, evil fire, Fire Lord, and beams bypass shields; only the
-three ordinary melee attacks remain shield-blockable and parryable. All values
+20 ticks. Hydra fire-skill damage is split into 30% physical and 70% fire damage.
+Flame breath, mortar, evil fire, Fire Lord, and beams bypass shields; only the
+custom sweep and slam remain shield-blockable and parryable. All values
 are configured under `hydra` in `config/bossrefactortf-common.toml`.
 
 The Ur-Ghast fight alternates between 20-second patrol and offensive modes from

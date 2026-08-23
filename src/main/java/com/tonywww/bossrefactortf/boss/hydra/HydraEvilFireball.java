@@ -3,12 +3,14 @@ package com.tonywww.bossrefactortf.boss.hydra;
 import com.tonywww.bossrefactortf.config.BossRefactorTwilightForestConfig;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.ItemSupplier;
 import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.entity.projectile.ProjectileUtil;
@@ -20,6 +22,9 @@ import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.network.NetworkHooks;
 import twilightforest.entity.boss.Hydra;
 import twilightforest.entity.boss.HydraPart;
+
+import javax.annotation.Nullable;
+import java.util.UUID;
 
 public final class HydraEvilFireball extends Projectile
         implements ItemSupplier {
@@ -37,6 +42,8 @@ public final class HydraEvilFireball extends Projectile
                     HydraEvilFireball.class, EntityDataSerializers.BOOLEAN);
 
     private int age;
+    @Nullable
+    private UUID targetId;
 
     public HydraEvilFireball(
             EntityType<? extends HydraEvilFireball> entityType,
@@ -53,12 +60,14 @@ public final class HydraEvilFireball extends Projectile
     }
 
     public void initialize(
-            Hydra owner, Vec3 origin, Vec3 direction,
+            Hydra owner, Player target, Vec3 origin, Vec3 direction,
             boolean phaseTwo) {
         setOwner(owner);
+        targetId = target.getUUID();
         setPos(origin);
         setLockedDirection(direction);
         getEntityData().set(PHASE_TWO, phaseTwo);
+        updateTrackingDirection();
         updateLockedVelocity();
     }
 
@@ -70,6 +79,7 @@ public final class HydraEvilFireball extends Projectile
             discard();
             return;
         }
+        updateTrackingDirection();
         updateLockedVelocity();
         HitResult hitResult = ProjectileUtil.getHitResultOnMoveVector(
                 this, this::canHitEntity);
@@ -129,6 +139,9 @@ public final class HydraEvilFireball extends Projectile
         tag.putFloat("DirectionY", getEntityData().get(DIRECTION_Y));
         tag.putFloat("DirectionZ", getEntityData().get(DIRECTION_Z));
         tag.putBoolean("PhaseTwo", isPhaseTwo());
+        if (targetId != null) {
+            tag.putUUID("Target", targetId);
+        }
     }
 
     @Override
@@ -140,6 +153,7 @@ public final class HydraEvilFireball extends Projectile
             tag.getFloat("DirectionY"),
             tag.getFloat("DirectionZ")));
         getEntityData().set(PHASE_TWO, tag.getBoolean("PhaseTwo"));
+        targetId = tag.hasUUID("Target") ? tag.getUUID("Target") : null;
         updateLockedVelocity();
     }
 
@@ -177,5 +191,26 @@ public final class HydraEvilFireball extends Projectile
                 getEntityData().get(DIRECTION_X) * speed,
                 getEntityData().get(DIRECTION_Y) * speed,
                 getEntityData().get(DIRECTION_Z) * speed);
+    }
+
+    private void updateTrackingDirection() {
+        if (!(level() instanceof ServerLevel serverLevel)
+                || targetId == null
+                || !(serverLevel.getEntity(targetId) instanceof Player target)
+                || !target.isAlive() || target.isCreative()
+                || target.isSpectator()) {
+            return;
+        }
+        Vec3 desiredDirection = target.position()
+                .add(0.0, target.getBbHeight() * 0.5, 0.0)
+                .subtract(position());
+        Vec3 currentDirection = new Vec3(
+                getEntityData().get(DIRECTION_X),
+                getEntityData().get(DIRECTION_Y),
+                getEntityData().get(DIRECTION_Z));
+        setLockedDirection(HydraCombatRules.turnToward(
+                currentDirection, desiredDirection,
+                BossRefactorTwilightForestConfig.HYDRA
+                        .evilFireballTrackingTurnDegrees.get()));
     }
 }

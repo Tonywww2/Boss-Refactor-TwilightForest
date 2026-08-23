@@ -46,6 +46,10 @@ public final class SnowQueenCombatRulesSelfTest {
         check(SnowQueenCombatRules.fallingIceCooldownBeforeWindup(
                         10, 20) == 1,
                 "falling ice cooldowns must remain positive");
+        check(SnowQueenCombatRules.configuredDropRandomBound(2) == 1,
+                "two drops must use a one-value random bound");
+        check(SnowQueenCombatRules.configuredDropRandomBound(3) == 2,
+                "three drops must use a two-value random bound");
 
         checkConfigDefaults();
         checkStateRoundTrip();
@@ -87,13 +91,27 @@ public final class SnowQueenCombatRulesSelfTest {
         check(config.iceShieldParryFeedbackTicks.getDefault() == 20,
                 "shield parry feedback must default to twenty ticks");
 
-        checkClose(config.chaseHeightOffset.getDefault(), 0.0,
-                "original hover height offset must default to zero");
         checkClose(config.chaseSpeedMultiplier.getDefault(), 1.3,
                 "original hover speed must default to one point three");
+        checkClose(config.dropTelegraphRadius.getDefault(), 3.0,
+                "drop warning radius must default to three blocks");
+        checkClose(config.dropDamageMultiplier.getDefault(), 1.0,
+                "drop impact must default to base attack damage");
+        check(config.dropMaximumSuccessfulDrops.getDefault() == 2,
+                "DROP phases must default to two successful drops");
+        check(config.dropHitsNonPlayers.getDefault(),
+                "drop impacts must hit non-players by default");
+        check(config.dropWarningSoundEnabled.getDefault(),
+                "drop warning sound must be enabled by default");
+        checkClose(config.dropWarningSoundVolume.getDefault(), 2.0,
+                "drop warning sound volume must default to two");
+        check(config.dropSnowflakeParticlesPerTick.getDefault() == 8,
+                "drop warnings must emit eight snowflakes per tick");
 
         check(config.shatteredIceRainQueenWindupTicks.getDefault() == 30,
                 "rain windup must default to thirty ticks");
+        check(config.shatteredIceRainCooldownTicks.getDefault() == 240,
+                "rain cooldown must default to twelve seconds");
         check(config.shatteredIceRainFirstPhaseMinimumCount.getDefault() == 2,
                 "rain minimum count must default to two");
         check(config.shatteredIceRainFirstPhaseMaximumCount.getDefault() == 4,
@@ -190,6 +208,7 @@ public final class SnowQueenCombatRulesSelfTest {
         UUID cooldownTarget = UUID.randomUUID();
         UUID preferredLink = UUID.randomUUID();
         UUID parryActor = UUID.randomUUID();
+        UUID directHit = UUID.randomUUID();
         AttackTelegraph telegraph = new AttackTelegraph(
                 AttackTelegraphShape.CIRCLE,
                 1.0F, 2.0F, 3.0F,
@@ -197,9 +216,9 @@ public final class SnowQueenCombatRulesSelfTest {
         SnowQueenCombatState savedState = new SnowQueenCombatState();
         savedState.secondPhase = true;
         savedState.rainRoundActive = true;
-        savedState.rainRoundCompleted = true;
         savedState.rainVolleySpawned = true;
         savedState.rainQueenWindupRemaining = 8;
+        savedState.rainCooldownRemaining = 123;
         savedState.linkEstablishTicks = 7;
         savedState.preferredLinkUuid = preferredLink;
         savedState.linkTeleportRemaining = 9;
@@ -217,9 +236,11 @@ public final class SnowQueenCombatRulesSelfTest {
         savedState.lastParryGameTime = 1234L;
         savedState.lastParryActorUuid = parryActor;
         savedState.currentTelegraph = telegraph;
+        savedState.dropTelegraph = telegraph.withProgress(1.0F);
         savedState.linkedSummons.add(linked);
         savedState.ownedSummons.add(owned);
         savedState.rainVolley.add(rain);
+        savedState.dropDirectHits.add(directHit);
         savedState.linkDeathPositions.addLast(new Vec3(1.0, 2.0, 3.0));
         savedState.linkDeathPositions.addLast(new Vec3(-4.0, 5.5, 6.0));
         savedState.shieldCollisionCooldowns.put(cooldownTarget, 4321L);
@@ -235,9 +256,10 @@ public final class SnowQueenCombatRulesSelfTest {
                 "obsolete action-state data must not be written to NBT");
         check(loadedState.secondPhase,
                 "second-phase state must survive an NBT round-trip");
-        check(loadedState.rainRoundActive && loadedState.rainRoundCompleted
+        check(loadedState.rainRoundActive
                         && loadedState.rainVolleySpawned
-                        && loadedState.rainQueenWindupRemaining == 8,
+                        && loadedState.rainQueenWindupRemaining == 8
+                        && loadedState.rainCooldownRemaining == 123,
                 "rain round state must survive an NBT round-trip");
         check(loadedState.linkEstablishTicks == 7
                         && preferredLink.equals(loadedState.preferredLinkUuid)
@@ -267,7 +289,8 @@ public final class SnowQueenCombatRulesSelfTest {
                 "parry actor must survive an NBT round-trip");
         check(loadedState.linkedSummons.contains(linked)
                         && loadedState.ownedSummons.contains(owned)
-                        && loadedState.rainVolley.contains(rain),
+                        && loadedState.rainVolley.contains(rain)
+                        && loadedState.dropDirectHits.contains(directHit),
                 "summon UUID sets must survive an NBT round-trip");
         check(loadedState.linkDeathPositions.size() == 2
                         && loadedState.linkDeathPositions.contains(
@@ -279,6 +302,9 @@ public final class SnowQueenCombatRulesSelfTest {
                 "shield collision cooldowns must survive an NBT round-trip");
         check(loadedState.currentTelegraph.equals(telegraph),
                 "telegraph state must survive an NBT round-trip");
+        check(loadedState.dropTelegraph.equals(
+                        telegraph.withProgress(1.0F)),
+                "drop telegraph state must survive an NBT round-trip");
     }
 
     private static void checkSummonDataRoundTrip() {

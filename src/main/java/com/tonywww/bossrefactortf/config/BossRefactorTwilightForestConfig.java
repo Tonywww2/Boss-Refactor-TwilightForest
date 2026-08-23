@@ -485,11 +485,13 @@ public final class BossRefactorTwilightForestConfig {
         public final ForgeConfigSpec.BooleanValue enabled;
         public final ForgeConfigSpec.DoubleValue baseAttackDamage;
         public final ForgeConfigSpec.DoubleValue secondPhaseDamageMultiplier;
+        public final ForgeConfigSpec.DoubleValue firePhysicalDamageFraction;
         public final ForgeConfigSpec.IntValue ordinaryAttackIntervalTicks;
         public final ForgeConfigSpec.IntValue recoveryTicks;
         public final ForgeConfigSpec.IntValue evilFireballWindupTicks;
         public final ForgeConfigSpec.IntValue evilFireballCooldownTicks;
         public final ForgeConfigSpec.DoubleValue evilFireballSpeed;
+        public final ForgeConfigSpec.DoubleValue evilFireballTrackingTurnDegrees;
         public final ForgeConfigSpec.DoubleValue evilFireballVisualScale;
         public final ForgeConfigSpec.IntValue evilFireballLifetimeTicks;
         public final ForgeConfigSpec.IntValue evilFireballAuraIntervalTicks;
@@ -554,6 +556,9 @@ public final class BossRefactorTwilightForestConfig {
             secondPhaseDamageMultiplier = builder.comment(
                             "Damage multiplier for all custom attacks below half health.")
                     .defineInRange("second_phase_damage_multiplier", 1.2, 0.0, 100.0);
+            firePhysicalDamageFraction = builder.comment(
+                            "Physical fraction of Hydra fire-skill damage; the remainder is fire damage.")
+                    .defineInRange("fire_physical_damage_fraction", 0.3, 0.0, 1.0);
             ordinaryAttackIntervalTicks = builder.comment(
                             "Delay before the next primary ordinary attack.")
                     .defineInRange("ordinary_attack_interval_ticks", 40, 0, 12000);
@@ -567,6 +572,9 @@ public final class BossRefactorTwilightForestConfig {
                     "cooldown_ticks", 200, 1, 12000);
             evilFireballSpeed = builder.defineInRange(
                     "speed", 0.25, 0.01, 8.0);
+            evilFireballTrackingTurnDegrees = builder.comment(
+                            "Maximum homing turn per tick, in degrees.")
+                    .defineInRange("tracking_turn_degrees_per_tick", 6.0, 0.0, 180.0);
             evilFireballVisualScale = builder.defineInRange(
                     "visual_scale", 4.0, 0.1, 32.0);
             evilFireballLifetimeTicks = builder.defineInRange(
@@ -576,7 +584,7 @@ public final class BossRefactorTwilightForestConfig {
             evilFireballAuraRadius = builder.defineInRange(
                     "aura_radius", 3.0, 0.1, 64.0);
             evilFireballAuraDamageMultiplier = builder.defineInRange(
-                    "aura_damage_multiplier", 0.6, 0.0, 100.0);
+                    "aura_damage_multiplier", 1.0, 0.0, 100.0);
             evilFireballExplosionRadius = builder.defineInRange(
                     "explosion_radius", 5.0, 0.1, 128.0);
             evilFireballExplosionDamageMultiplier = builder.defineInRange(
@@ -1192,9 +1200,16 @@ public final class BossRefactorTwilightForestConfig {
         public final ForgeConfigSpec.IntValue iceShieldShieldCooldownTicks;
         public final ForgeConfigSpec.BooleanValue iceShieldSlashBladeParryEnabled;
         public final ForgeConfigSpec.IntValue iceShieldParryFeedbackTicks;
-        public final ForgeConfigSpec.DoubleValue chaseHeightOffset;
         public final ForgeConfigSpec.DoubleValue chaseSpeedMultiplier;
+        public final ForgeConfigSpec.DoubleValue dropTelegraphRadius;
+        public final ForgeConfigSpec.DoubleValue dropDamageMultiplier;
+        public final ForgeConfigSpec.IntValue dropMaximumSuccessfulDrops;
+        public final ForgeConfigSpec.BooleanValue dropHitsNonPlayers;
+        public final ForgeConfigSpec.BooleanValue dropWarningSoundEnabled;
+        public final ForgeConfigSpec.DoubleValue dropWarningSoundVolume;
+        public final ForgeConfigSpec.IntValue dropSnowflakeParticlesPerTick;
         public final ForgeConfigSpec.IntValue shatteredIceRainQueenWindupTicks;
+        public final ForgeConfigSpec.IntValue shatteredIceRainCooldownTicks;
         public final ForgeConfigSpec.IntValue shatteredIceRainFirstPhaseMinimumCount;
         public final ForgeConfigSpec.IntValue shatteredIceRainFirstPhaseMaximumCount;
         public final ForgeConfigSpec.IntValue shatteredIceRainSecondPhaseMinimumCount;
@@ -1280,15 +1295,32 @@ public final class BossRefactorTwilightForestConfig {
             builder.pop();
 
             builder.comment("Original hover movement.").push("chase");
-            chaseHeightOffset = builder.comment("Preferred original hover height relative to the target.")
-                    .defineInRange("height_offset", 0.0, -64.0, 64.0);
             chaseSpeedMultiplier = builder.comment("Original hover movement-speed multiplier.")
                     .defineInRange("speed_multiplier", 1.3, 0.0, 20.0);
+            builder.pop();
+
+            builder.comment("Original drop warning and impact.").push("drop");
+            dropTelegraphRadius = builder.comment("Radius of the locked drop warning and impact.")
+                    .defineInRange("telegraph_radius", 3.0, 0.5, 32.0);
+            dropDamageMultiplier = builder.comment("Attack-damage multiplier for the drop impact.")
+                    .defineInRange("damage_multiplier", 1.0, 0.0, 20.0);
+            dropMaximumSuccessfulDrops = builder.comment("Maximum successful drops in each original DROP phase.")
+                    .defineInRange("maximum_successful_drops", 2, 2, 4);
+            dropHitsNonPlayers = builder.comment("Allow drop impacts to hit non-player living entities.")
+                    .define("hits_non_players", true);
+            dropWarningSoundEnabled = builder.comment("Play the Snow Queen casting sound when a drop locks its position.")
+                    .define("warning_sound_enabled", true);
+            dropWarningSoundVolume = builder.comment("Volume of the drop warning sound.")
+                    .defineInRange("warning_sound_volume", 2.0, 0.0, 16.0);
+            dropSnowflakeParticlesPerTick = builder.comment("Snowflake particles emitted around the drop warning each tick.")
+                    .defineInRange("snowflake_particles_per_tick", 8, 0, 128);
             builder.pop();
 
             builder.comment("Shattered ice rain.").push("shattered_ice_rain");
             shatteredIceRainQueenWindupTicks = builder.comment("Queen windup before summoning shattered ice, in ticks.")
                     .defineInRange("queen_windup_ticks", 30, 0, 1200);
+            shatteredIceRainCooldownTicks = builder.comment("Cooldown after a shattered ice volley finishes, in ticks.")
+                    .defineInRange("cooldown_ticks", 240, 1, 12000);
             shatteredIceRainFirstPhaseMinimumCount = builder.comment("Minimum shattered ice count during the first phase.")
                     .defineInRange("first_phase_minimum_count", 2, 0, 32);
             shatteredIceRainFirstPhaseMaximumCount = builder.comment("Maximum shattered ice count during the first phase.")

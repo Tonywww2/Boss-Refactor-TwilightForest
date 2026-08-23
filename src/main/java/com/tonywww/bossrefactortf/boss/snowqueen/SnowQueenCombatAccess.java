@@ -38,4 +38,6 @@ public interface SnowQueenCombatAccess {
     void bossRefactorTF$setSnowQueenSecondPhase(boolean secondPhase);
 
     void bossRefactorTF$setSnowQueenTelegraph(AttackTelegraph telegraph);
+
+    void bossRefactorTF$setSnowQueenDropTelegraph(AttackTelegraph telegraph);
 }

@@ -19,9 +19,9 @@ public final class SnowQueenCombatState {
     boolean secondPhase;
     boolean suppressLinkDeathQueue;
     boolean rainRoundActive;
-    boolean rainRoundCompleted;
     boolean rainVolleySpawned;
     int rainQueenWindupRemaining;
+    int rainCooldownRemaining;
     int linkEstablishTicks;
     UUID preferredLinkUuid;
     int linkTeleportRemaining;
@@ -39,9 +39,11 @@ public final class SnowQueenCombatState {
     long lastParryGameTime = Long.MIN_VALUE;
     UUID lastParryActorUuid;
     AttackTelegraph currentTelegraph = AttackTelegraph.NONE;
+    AttackTelegraph dropTelegraph = AttackTelegraph.NONE;
     final Set<UUID> linkedSummons = new LinkedHashSet<>();
     final Set<UUID> ownedSummons = new LinkedHashSet<>();
     final Set<UUID> rainVolley = new LinkedHashSet<>();
+    final Set<UUID> dropDirectHits = new LinkedHashSet<>();
     final Deque<Vec3> linkDeathPositions = new ArrayDeque<>();
     final Map<UUID, Long> shieldCollisionCooldowns = new HashMap<>();
 
@@ -49,9 +51,9 @@ public final class SnowQueenCombatState {
         CompoundTag tag = new CompoundTag();
         tag.putBoolean("SecondPhase", secondPhase);
         tag.putBoolean("RainRoundActive", rainRoundActive);
-        tag.putBoolean("RainRoundCompleted", rainRoundCompleted);
         tag.putBoolean("RainVolleySpawned", rainVolleySpawned);
         tag.putInt("RainQueenWindupRemaining", rainQueenWindupRemaining);
+        tag.putInt("RainCooldownRemaining", rainCooldownRemaining);
         tag.putInt("LinkEstablishTicks", linkEstablishTicks);
         if (preferredLinkUuid != null) {
             tag.putUUID("PreferredLinkUuid", preferredLinkUuid);
@@ -73,9 +75,11 @@ public final class SnowQueenCombatState {
             tag.putUUID("LastParryActorUuid", lastParryActorUuid);
         }
         tag.put("CurrentTelegraph", AttackTelegraphNbt.encode(currentTelegraph));
+        tag.put("DropTelegraph", AttackTelegraphNbt.encode(dropTelegraph));
         tag.put("LinkedSummons", saveUuids(linkedSummons));
         tag.put("OwnedSummons", saveUuids(ownedSummons));
         tag.put("RainVolley", saveUuids(rainVolley));
+        tag.put("DropDirectHits", saveUuids(dropDirectHits));
 
         ListTag positionTags = new ListTag();
         for (Vec3 position : linkDeathPositions) {
@@ -102,10 +106,11 @@ public final class SnowQueenCombatState {
         secondPhase = tag.getBoolean("SecondPhase");
         suppressLinkDeathQueue = false;
         rainRoundActive = tag.getBoolean("RainRoundActive");
-        rainRoundCompleted = tag.getBoolean("RainRoundCompleted");
         rainVolleySpawned = tag.getBoolean("RainVolleySpawned");
         rainQueenWindupRemaining = Math.max(
             0, tag.getInt("RainQueenWindupRemaining"));
+        rainCooldownRemaining = Math.max(
+            0, tag.getInt("RainCooldownRemaining"));
         linkEstablishTicks = Math.max(0, tag.getInt("LinkEstablishTicks"));
         preferredLinkUuid = tag.hasUUID("PreferredLinkUuid")
             ? tag.getUUID("PreferredLinkUuid")
@@ -132,10 +137,15 @@ public final class SnowQueenCombatState {
         currentTelegraph = tag.contains("CurrentTelegraph", Tag.TAG_COMPOUND)
             ? AttackTelegraphNbt.decode(tag.getCompound("CurrentTelegraph"))
             : AttackTelegraph.NONE;
+        dropTelegraph = tag.contains("DropTelegraph", Tag.TAG_COMPOUND)
+            ? AttackTelegraphNbt.decode(tag.getCompound("DropTelegraph"))
+            : AttackTelegraph.NONE;
 
         loadUuids(tag.getList("LinkedSummons", Tag.TAG_COMPOUND), linkedSummons);
         loadUuids(tag.getList("OwnedSummons", Tag.TAG_COMPOUND), ownedSummons);
         loadUuids(tag.getList("RainVolley", Tag.TAG_COMPOUND), rainVolley);
+        loadUuids(tag.getList("DropDirectHits", Tag.TAG_COMPOUND),
+            dropDirectHits);
 
         linkDeathPositions.clear();
         ListTag positionTags = tag.getList(
