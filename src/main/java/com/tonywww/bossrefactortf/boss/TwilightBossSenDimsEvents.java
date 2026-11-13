@@ -52,18 +52,20 @@ public final class TwilightBossSenDimsEvents {
             return;
         }
         if (!bridge.ensureActive(boss)) {
-            throw new IllegalStateException(
-                "SenDimS did not activate Leader mechanics for parryable entity "
-                    + boss.getUUID());
+            BossRefactorTwilightForest.LOGGER.error(
+                "SenDimS did not activate Leader mechanics for parryable entity {}",
+                boss.getUUID());
+            return;
         }
         TwilightBossLeaderProfile profile = bridge.leaderProfile(boss);
         TwilightBossLeaderProfilePolicy policy =
                 TwilightBossParryIntegration.leaderProfilePolicy(boss.getType());
         if (!policy.accepts(profile)) {
             removeProjectExternalHealthScale(boss);
-            throw new IllegalStateException(
-                "Parryable entity " + boss.getUUID()
-                    + " is not using an allowed SenDimS Leader profile");
+            BossRefactorTwilightForest.LOGGER.error(
+                "Parryable entity {} is using SenDimS Leader profile {}, which {} does not allow",
+                boss.getUUID(), profile, policy);
+            return;
         }
         if (profile == TwilightBossLeaderProfile.EXTERNAL) {
             applyExternalHealthScale(boss);

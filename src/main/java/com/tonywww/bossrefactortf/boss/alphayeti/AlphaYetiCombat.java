@@ -32,6 +32,8 @@ public final class AlphaYetiCombat {
     public static final String VISUAL_ONLY_FALLING_ICE_TAG =
             "BossRefactorTFVisualOnly";
 
+    private static final int MINIMUM_PARRY_WINDOW_TICKS = 20;
+
     private AlphaYetiCombat() {
     }
 
@@ -141,6 +143,12 @@ public final class AlphaYetiCombat {
         }
         state.lastParryGameTime = gameTime;
         addImbalance(yeti, state);
+        if (state.attackState == AlphaYetiAttackState.PURSUIT) {
+            state.stateDuration = Math.max(state.stateDuration,
+                    state.stateTicks + BossRefactorTwilightForestConfig.ALPHA_YETI
+                            .parryFeedbackTicks.get()
+                            + MINIMUM_PARRY_WINDOW_TICKS);
+        }
         return true;
     }
 

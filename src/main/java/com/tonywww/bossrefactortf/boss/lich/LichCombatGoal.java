@@ -44,4 +44,10 @@ public final class LichCombatGoal extends Goal {
     public void tick() {
         LichCombat.tick(lich);
     }
+
+    // 配置里的 tick 按游戏 tick 计算；默认目标只每 2 tick 执行一次。
+    @Override
+    public boolean requiresUpdateEveryTick() {
+        return true;
+    }
 }

@@ -94,6 +94,7 @@ public abstract class PhantomUpdateFormationAndMoveGoalMixin {
     private void bossRefactorTF$avoidPlayerInsideArena(
             CallbackInfoReturnable<Vec3> callback) {
         callback.setReturnValue(KnightPhantomCombat.avoidPlayerWithinArena(
-                boss, callback.getReturnValue()));
+                boss, KnightPhantomCombat.clampToFlightCeiling(
+                        boss, callback.getReturnValue())));
     }
 }

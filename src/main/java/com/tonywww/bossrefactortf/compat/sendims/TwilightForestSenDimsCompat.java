@@ -21,14 +21,18 @@ import net.minecraftforge.fml.loading.FMLEnvironment;
 public final class TwilightForestSenDimsCompat implements TwilightBossParryBridge {
     private static final String CLIENT_INDICATOR_PROVIDER =
             "com.tonywww.bossrefactortf.compat.sendims.client.ExternalLeaderIndicatorProvider";
+    private static final int SUPPRESSED_STUN_TICKS = 1;
+    private static final int MINIMUM_PARRIED_TICKS = 30;
+    private static final int MAXIMUM_PARRIED_TICKS = 100;
 
     private TwilightForestSenDimsCompat() {
     }
 
     public static void initialize() {
         TwilightForestSenDimsCompat compat = new TwilightForestSenDimsCompat();
-        TwilightBossParryIntegration.install(compat);
+        // 先注册事件：事件类缺失时在这里失败，桥接还没有安装。
         MinecraftForge.EVENT_BUS.register(compat);
+        TwilightBossParryIntegration.install(compat);
         if (FMLEnvironment.dist == Dist.CLIENT) {
             registerClientIndicatorProvider();
         }
@@ -41,13 +45,10 @@ public final class TwilightForestSenDimsCompat implements TwilightBossParryBridg
         try {
             Class<?> provider = Class.forName(CLIENT_INDICATOR_PROVIDER);
             provider.getMethod("register").invoke(null);
-        } catch (ReflectiveOperationException exception) {
-            BossRefactorTwilightForest.LOGGER.error(
+        } catch (ReflectiveOperationException | LinkageError exception) {
+            BossRefactorTwilightForest.LOGGER.warn(
                     "Unable to register the SenDimS external Leader indicator provider",
                     exception);
-            throw new IllegalStateException(
-                "Unable to register the SenDimS external Leader indicator provider",
-                exception);
         }
     }
 
@@ -125,27 +126,41 @@ public final class TwilightForestSenDimsCompat implements TwilightBossParryBridg
 
     @SubscribeEvent(priority = EventPriority.LOWEST)
     public void onParryAttempt(LeaderParryAttemptEvent event) {
-        if (!(event.getTarget() instanceof TwilightBossParryAccess access)
-                || !access.bossRefactorTF$isCurrentAttackParryable(
-                        event.getActor())) {
+        if (!TwilightBossParryIntegration.bridge().isAvailable()
+                || !(event.getTarget() instanceof TwilightBossParryAccess access)) {
             return;
         }
-        int feedbackTicks = access.bossRefactorTF$getParryFeedbackTicks();
-        if (feedbackTicks <= 0) {
-            return;
+        try {
+            int feedbackTicks = access.bossRefactorTF$isCurrentAttackParryable(
+                    event.getActor())
+                    ? access.bossRefactorTF$getParryFeedbackTicks()
+                    : 0;
+            feedbackTicks = Math.min(MAXIMUM_PARRIED_TICKS,
+                    Math.max(MINIMUM_PARRIED_TICKS, feedbackTicks));
+            event.setDecision(LeaderParryDecision.PARRY);
+            event.setParriedTicks(feedbackTicks);
+            event.setStunTicks(access.bossRefactorTF$suppressesExternalParryStun()
+                ? SUPPRESSED_STUN_TICKS
+                : feedbackTicks);
+        } catch (LinkageError error) {
+            TwilightBossParryIntegration.disable(
+                    "incompatible SenDimS parry attempt event", error);
         }
-        event.setDecision(LeaderParryDecision.PARRY);
-        event.setParriedTicks(feedbackTicks);
-        event.setStunTicks(access.bossRefactorTF$suppressesExternalParryStun()
-            ? 0
-            : feedbackTicks);
     }
 
     @SubscribeEvent
     public void onParried(LeaderParriedEvent event) {
-        if (event.getTarget() instanceof TwilightBossParryAccess access) {
-            access.bossRefactorTF$acceptParry(
-                    event.getActor(), event.getSourceId());
+        if (!TwilightBossParryIntegration.bridge().isAvailable()) {
+            return;
+        }
+        try {
+            if (event.getTarget() instanceof TwilightBossParryAccess access) {
+                access.bossRefactorTF$acceptParry(
+                        event.getActor(), event.getSourceId());
+            }
+        } catch (LinkageError error) {
+            TwilightBossParryIntegration.disable(
+                    "incompatible SenDimS parried event", error);
         }
     }
 }

@@ -159,9 +159,10 @@ public final class LichCombat {
     }
 
     public static boolean isCurrentAttackParryable(Lich lich) {
+        LichCombatState state = state(lich);
         return customCombatEnabled()
-                && LichCombatRules.isCurrentAttackParryable(
-                        state(lich).actionState);
+                && !state.shieldBashParried
+                && LichCombatRules.isCurrentAttackParryable(state.actionState);
     }
 
     public static boolean suppressesExternalParryStun(Lich lich) {

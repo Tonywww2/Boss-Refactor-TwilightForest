@@ -25,7 +25,7 @@ public final class NagaCombatRules {
             NagaActionState actionState, boolean secondPhase,
             boolean stunImmunityAvailable) {
         return switch (actionState) {
-            case CHARGE, POUNCE_WINDUP, POUNCE_FLIGHT,
+            case CHARGE_WINDUP, CHARGE, POUNCE_WINDUP, POUNCE_FLIGHT,
                     POUNCE_IMPACT, VENOM_WINDUP, VENOM_PROJECTILE -> true;
             default -> false;
         };

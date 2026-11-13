@@ -12,6 +12,7 @@ public final class NagaCombatState {
     int stateTicks;
     int stateDuration;
     int chargeCooldown;
+    long chargeWindupEndGameTime;
     int pounceCooldown;
     int venomCooldown;
     double lockedX;

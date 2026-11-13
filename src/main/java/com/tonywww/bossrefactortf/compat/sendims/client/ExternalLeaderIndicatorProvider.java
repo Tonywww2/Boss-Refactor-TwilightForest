@@ -19,8 +19,7 @@ public final class ExternalLeaderIndicatorProvider {
     }
 
     private static OptionalDouble warningProgress(LivingEntity entity) {
-        if (!(entity instanceof TwilightBossParryAccess access)
-                || !access.bossRefactorTF$isCurrentAttackParryable()) {
+        if (!(entity instanceof TwilightBossParryAccess)) {
             return OptionalDouble.empty();
         }
         if (entity instanceof AttackTelegraphAccess telegraphAccess) {

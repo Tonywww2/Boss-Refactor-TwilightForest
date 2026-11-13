@@ -9,7 +9,8 @@ public enum NagaActionState {
     POUNCE_IMPACT("pounce_impact"),
     VENOM_WINDUP("venom_windup"),
     VENOM_PROJECTILE("venom_projectile"),
-    STUNNED("stunned");
+    STUNNED("stunned"),
+    CHARGE_WINDUP("charge_windup");
 
     private final String id;
 

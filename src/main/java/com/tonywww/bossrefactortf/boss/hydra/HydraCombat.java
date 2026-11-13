@@ -343,6 +343,12 @@ public final class HydraCombat {
 
     private static void beginRecovery(
             Hydra hydra, HydraCombatState state) {
+        beginRecovery(hydra, state, BossRefactorTwilightForestConfig.HYDRA
+            .recoveryTicks.get());
+    }
+
+    private static void beginRecovery(
+            Hydra hydra, HydraCombatState state, int recoveryTicks) {
         state.recoveryVisualProgress = state.skill == HydraSkill.NONE
             ? 0.0F
             : AttackTelegraph.windupProgress(
@@ -350,8 +356,6 @@ public final class HydraCombat {
         clearHeadTarget(hydra, state.activeHeadIndex);
         state.ordinaryAttackCooldown = BossRefactorTwilightForestConfig.HYDRA
                 .ordinaryAttackIntervalTicks.get();
-        int recoveryTicks = BossRefactorTwilightForestConfig.HYDRA
-            .recoveryTicks.get();
         if (recoveryTicks <= 0) {
             enterIdle(state);
         } else {
@@ -370,7 +374,9 @@ public final class HydraCombat {
             Hydra hydra, HydraCombatState state) {
         clearHeadTarget(hydra, state.activeHeadIndex);
         hydra.playSound(SoundEvents.SHIELD_BLOCK, 2.0F, 0.8F);
-        beginRecovery(hydra, state);
+        beginRecovery(hydra, state, Math.max(
+            BossRefactorTwilightForestConfig.HYDRA.recoveryTicks.get(),
+            BossRefactorTwilightForestConfig.HYDRA.parryFeedbackTicks.get()));
         synchronizeVisualState(hydra, state);
         synchronizeTelegraphs(hydra, state);
         closeParryWindow(hydra);

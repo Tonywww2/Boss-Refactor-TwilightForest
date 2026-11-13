@@ -70,9 +70,26 @@ public abstract class LichMixin extends Monster
             at = @At("TAIL"),
             remap = false)
     private void bossRefactorTF$defineCombatData(CallbackInfo callback) {
-        getEntityData().define(
-                BOSS_REFACTOR_TF$PRIMARY_TELEGRAPH,
-                AttackTelegraphNbt.encode(AttackTelegraph.NONE));
+        bossRefactorTF$defineCombatDataOnce();
+    }
+
+    // 其他模组可能在 defineSynchedData 开头取消整个方法，末尾的注入就不会执行；构造完成后补登记一次。
+    @Inject(
+            method = "<init>(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/level/Level;)V",
+            at = @At("RETURN"),
+            remap = false)
+    private void bossRefactorTF$ensureCombatData(CallbackInfo callback) {
+        bossRefactorTF$defineCombatDataOnce();
+    }
+
+    @Unique
+    private void bossRefactorTF$defineCombatDataOnce() {
+        SynchedEntityData data = getEntityData();
+        if (!data.hasItem(BOSS_REFACTOR_TF$PRIMARY_TELEGRAPH)) {
+            data.define(
+                    BOSS_REFACTOR_TF$PRIMARY_TELEGRAPH,
+                    AttackTelegraphNbt.encode(AttackTelegraph.NONE));
+        }
     }
 
     @Inject(

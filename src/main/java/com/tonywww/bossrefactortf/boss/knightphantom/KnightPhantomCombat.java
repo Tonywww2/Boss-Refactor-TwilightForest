@@ -3,6 +3,7 @@ package com.tonywww.bossrefactortf.boss.knightphantom;
 import com.tonywww.bossrefactortf.boss.TwilightBossParryIntegration;
 import com.tonywww.bossrefactortf.config.BossRefactorTwilightForestConfig;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.GlobalPos;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.level.ServerLevel;
@@ -13,7 +14,9 @@ import net.minecraft.world.entity.ai.targeting.TargetingConditions;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.ShieldItem;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.entity.EntityTypeTest;
+import net.minecraft.world.phys.shapes.VoxelShape;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import twilightforest.entity.boss.KnightPhantom;
@@ -30,6 +33,7 @@ public final class KnightPhantomCombat {
     private static final Comparator<KnightPhantom> CHARGE_ORDER =
             Comparator.comparingInt(KnightPhantom::getNumber)
                     .thenComparing(KnightPhantom::getUUID);
+    private static final int GROUND_SEARCH_DEPTH = 24;
 
     private KnightPhantomCombat() {
     }
@@ -444,7 +448,7 @@ public final class KnightPhantomCombat {
     public static Vec3 postChargePossessionDestination(KnightPhantom knight) {
         LivingEntity target = knight.getTarget();
         if (target != null && target.isAlive()) {
-            return target.position();
+            return clampToFlightCeiling(knight, target.position());
         }
         Vec3 direction = knight.getLookAngle();
         if (direction.lengthSqr() < 1.0E-8) {
@@ -749,7 +753,8 @@ public final class KnightPhantomCombat {
                             knight.getX(), knight.getZ(),
                             direction.x, direction.z, maximumDistance,
                             knight.getX(), knight.getZ(), maximumDistance);
-            return new Vec3(destination.x(), target.getY(), destination.z());
+            return clampToFlightCeiling(knight,
+                    new Vec3(destination.x(), target.getY(), destination.z()));
         }
 
         Vec3 arenaCenter = Vec3.atCenterOf(restrictionPoint.pos());
@@ -760,7 +765,52 @@ public final class KnightPhantomCombat {
                 direction.x, direction.z,
                 maximumDistance,
                 arenaCenter.x, arenaCenter.z, maximumRadius);
-        return new Vec3(destination.x(), target.getY(), destination.z());
+        return clampToFlightCeiling(knight,
+                new Vec3(destination.x(), target.getY(), destination.z()));
+    }
+
+    public static Vec3 clampToFlightCeiling(KnightPhantom knight, Vec3 destination) {
+        double ceiling = flightCeiling(knight);
+        return destination.y > ceiling
+                ? new Vec3(destination.x, ceiling, destination.z)
+                : destination;
+    }
+
+    private static double flightCeiling(KnightPhantom knight) {
+        double limit = BossRefactorTwilightForestConfig.KNIGHT_PHANTOM
+                .maximumHeightAboveGround.get();
+        LivingEntity target = knight.getTarget();
+        if (target != null && target.isAlive() && target.level() == knight.level()) {
+            return groundBelow(target) + limit;
+        }
+        GlobalPos restrictionPoint = knight.getRestrictionPoint();
+        if (restrictionPoint != null
+                && restrictionPoint.dimension().equals(knight.level().dimension())) {
+            return restrictionPoint.pos().getY() + limit;
+        }
+        return Double.POSITIVE_INFINITY;
+    }
+
+    private static double groundBelow(LivingEntity entity) {
+        if (entity.onGround()) {
+            return entity.getY();
+        }
+        Level level = entity.level();
+        BlockPos.MutableBlockPos cursor = entity.blockPosition().mutable();
+        int lowest = Math.max(level.getMinBuildHeight(),
+                cursor.getY() - GROUND_SEARCH_DEPTH);
+        while (cursor.getY() >= lowest) {
+            VoxelShape shape = level.getBlockState(cursor)
+                    .getCollisionShape(level, cursor);
+            if (!shape.isEmpty()) {
+                double top = cursor.getY() + shape.max(Direction.Axis.Y);
+                if (top <= entity.getY() + 1.0E-3) {
+                    return top;
+                }
+            }
+            cursor.move(Direction.DOWN);
+        }
+        return entity.getY();
     }
 
     private static double arenaRadius(KnightPhantom knight) {
@@ -884,7 +934,8 @@ public final class KnightPhantomCombat {
     }
 
     private static void moveWaitingKnight(KnightPhantom knight) {
-        Vec3 destination = avoidPlayerWithinArena(knight, knight.position());
+        Vec3 destination = avoidPlayerWithinArena(
+                knight, clampToFlightCeiling(knight, knight.position()));
         if (!KnightPhantomCombatRules.shouldMoveToDestination(
                 knight.getX(), knight.getY(), knight.getZ(),
                 destination.x, destination.y, destination.z)) {

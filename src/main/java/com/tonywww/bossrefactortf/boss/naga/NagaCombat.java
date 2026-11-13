@@ -99,6 +99,7 @@ public final class NagaCombat {
         switch (state.actionState) {
             case IDLE -> startIfIdle(naga);
             case CRUISING -> tickCruise(naga, state);
+            case CHARGE_WINDUP -> tickChargeWindup(naga, state);
             case CHARGE -> tickCharge(naga, state);
             case POUNCE_WINDUP -> tickPounceWindup(naga, state);
             case POUNCE_FLIGHT -> tickPounceFlight(naga, state);
@@ -115,8 +116,8 @@ public final class NagaCombat {
 
     public static boolean isCurrentAttackParryable(Naga naga) {
         return switch (state(naga).actionState) {
-            case CHARGE, POUNCE_WINDUP, POUNCE_FLIGHT, POUNCE_IMPACT,
-                    VENOM_WINDUP, VENOM_PROJECTILE -> true;
+            case CHARGE_WINDUP, CHARGE, POUNCE_WINDUP, POUNCE_FLIGHT,
+                    POUNCE_IMPACT, VENOM_WINDUP, VENOM_PROJECTILE -> true;
             default -> false;
         };
     }
@@ -209,7 +210,8 @@ public final class NagaCombat {
                     BossRefactorTwilightForestConfig.NAGA.cruiseSpeed.get());
         }
         state.stateTicks++;
-        if (state.stateTicks >= state.stateDuration) {
+        if (state.stateTicks >= state.stateDuration
+                && !TwilightBossParryIntegration.bridge().isParried(naga)) {
             beginNextSkill(naga, target, state);
         }
     }
@@ -377,9 +379,8 @@ public final class NagaCombat {
     }
 
     private static void beginCharge(Naga naga, NagaCombatState state) {
-        NagaMovementPattern movementPattern =
-                access(naga).bossRefactorTF$getMovementPattern();
-        if (!(movementPattern instanceof NagaMovementPatternAccess charge)) {
+        if (!(access(naga).bossRefactorTF$getMovementPattern()
+                instanceof NagaMovementPatternAccess)) {
             beginCruise(naga);
             return;
         }
@@ -387,6 +388,29 @@ public final class NagaCombat {
                 .chargeCooldownTicks.get();
         clearTelegraphs(naga);
         naga.getNavigation().stop();
+        enterState(state, NagaActionState.CHARGE_WINDUP, 0);
+        state.chargeWindupEndGameTime = naga.level().getGameTime()
+                + BossRefactorTwilightForestConfig.NAGA.chargeWindupTicks.get();
+    }
+
+    private static void tickChargeWindup(Naga naga, NagaCombatState state) {
+        LivingEntity target = naga.getTarget();
+        if (!isRetainableTarget(naga, target)) {
+            beginCruise(naga);
+            return;
+        }
+        stopHorizontalMovement(naga);
+        naga.getLookControl().setLookAt(target, 30.0F, naga.getMaxHeadXRot());
+        sendWindupParticles(naga, ParticleTypes.CLOUD);
+        if (naga.level().getGameTime() < state.chargeWindupEndGameTime) {
+            return;
+        }
+        NagaMovementPattern movementPattern =
+                access(naga).bossRefactorTF$getMovementPattern();
+        if (!(movementPattern instanceof NagaMovementPatternAccess charge)) {
+            beginCruise(naga);
+            return;
+        }
         enterState(state, NagaActionState.CHARGE, 0);
         charge.bossRefactorTF$doCharge(false);
     }

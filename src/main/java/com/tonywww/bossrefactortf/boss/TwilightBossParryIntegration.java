@@ -1,5 +1,6 @@
 package com.tonywww.bossrefactortf.boss;
 
+import com.tonywww.bossrefactortf.BossRefactorTwilightForest;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 
@@ -57,6 +58,7 @@ public final class TwilightBossParryIntegration {
         private static final Set<EntityType<? extends LivingEntity>>
             MANAGED_OR_EXTERNAL_LEADERS = new LinkedHashSet<>();
     private static TwilightBossParryBridge bridge = NOOP;
+    private static boolean disabled;
 
     private TwilightBossParryIntegration() {
     }
@@ -112,12 +114,117 @@ public final class TwilightBossParryIntegration {
     }
 
     public static void install(TwilightBossParryBridge newBridge) {
-        bridge = Objects.requireNonNull(newBridge, "newBridge");
+        if (disabled) {
+            return;
+        }
+        bridge = new GuardedBridge(Objects.requireNonNull(newBridge, "newBridge"));
         for (EntityType<? extends LivingEntity> entityType : EXTERNAL_LEADERS) {
-            if (!bridge.registerLeaderType(entityType)) {
-                throw new IllegalStateException(
-                        "Conflicting SenDimS Leader profile for "
-                                + EntityType.getKey(entityType));
+            if (!bridge.registerLeaderType(entityType) && !disabled) {
+                BossRefactorTwilightForest.LOGGER.warn(
+                        "SenDimS already uses another Leader profile for {}; its parry integration stays off",
+                        EntityType.getKey(entityType));
+            }
+        }
+    }
+
+    // 联动失败（特供模组版本不兼容、API 变化）时退回无联动状态，Boss 照常按本模组的规则战斗。
+    public static void disable(String reason, Throwable cause) {
+        bridge = NOOP;
+        if (disabled) {
+            return;
+        }
+        disabled = true;
+        BossRefactorTwilightForest.LOGGER.warn(
+                "SenDimS boss integration disabled: {}", reason, cause);
+    }
+
+    private static final class GuardedBridge implements TwilightBossParryBridge {
+        private static final String INCOMPATIBLE_API = "incompatible SenDimS Leader API";
+
+        private final TwilightBossParryBridge delegate;
+
+        private GuardedBridge(TwilightBossParryBridge delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public boolean isAvailable() {
+            try {
+                return delegate.isAvailable();
+            } catch (LinkageError error) {
+                disable(INCOMPATIBLE_API, error);
+                return false;
+            }
+        }
+
+        @Override
+        public boolean registerLeaderType(
+                EntityType<? extends LivingEntity> entityType) {
+            try {
+                return delegate.registerLeaderType(entityType);
+            } catch (LinkageError error) {
+                disable(INCOMPATIBLE_API, error);
+                return false;
+            }
+        }
+
+        @Override
+        public boolean ensureActive(LivingEntity boss) {
+            try {
+                return delegate.ensureActive(boss);
+            } catch (LinkageError error) {
+                disable(INCOMPATIBLE_API, error);
+                return false;
+            }
+        }
+
+        @Override
+        public TwilightBossLeaderProfile leaderProfile(LivingEntity boss) {
+            try {
+                return delegate.leaderProfile(boss);
+            } catch (LinkageError error) {
+                disable(INCOMPATIBLE_API, error);
+                return TwilightBossLeaderProfile.NONE;
+            }
+        }
+
+        @Override
+        public boolean isParryable(LivingEntity boss) {
+            try {
+                return delegate.isParryable(boss);
+            } catch (LinkageError error) {
+                disable(INCOMPATIBLE_API, error);
+                return false;
+            }
+        }
+
+        @Override
+        public boolean isParried(LivingEntity boss) {
+            try {
+                return delegate.isParried(boss);
+            } catch (LinkageError error) {
+                disable(INCOMPATIBLE_API, error);
+                return false;
+            }
+        }
+
+        @Override
+        public boolean openWindow(LivingEntity boss) {
+            try {
+                return delegate.openWindow(boss);
+            } catch (LinkageError error) {
+                disable(INCOMPATIBLE_API, error);
+                return false;
+            }
+        }
+
+        @Override
+        public boolean closeWindow(LivingEntity boss) {
+            try {
+                return delegate.closeWindow(boss);
+            } catch (LinkageError error) {
+                disable(INCOMPATIBLE_API, error);
+                return false;
             }
         }
     }

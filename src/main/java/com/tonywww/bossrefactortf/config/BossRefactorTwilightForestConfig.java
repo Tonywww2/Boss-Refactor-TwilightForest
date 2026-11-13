@@ -153,7 +153,7 @@ public final class BossRefactorTwilightForestConfig {
 
             builder.comment("Repeated dash and sweep rounds.").push("sweep");
             sweepInitialWindupTicks = builder.defineInRange(
-                    "initial_windup_ticks", 20, 1, 1200);
+                    "initial_windup_ticks", 20, 20, 1200);
             sweepDashMaximumDistance = builder.defineInRange(
                     "dash_maximum_distance", 6.0, 0.0, 128.0);
             sweepDashDurationTicks = builder.defineInRange(
@@ -173,7 +173,7 @@ public final class BossRefactorTwilightForestConfig {
             sweepStrikeDamageMultiplier = builder.defineInRange(
                     "strike_damage_multiplier", 1.5, 0.0, 100.0);
             sweepParryStunTicks = builder.defineInRange(
-                    "parry_stun_ticks", 40, 1, 1200);
+                    "parry_stun_ticks", 40, 30, 100);
             sweepRepeatProbability = builder.defineInRange(
                     "repeat_probability", 0.5, 0.0, 1.0);
             sweepMaximumRepeats = builder.comment(
@@ -283,7 +283,7 @@ public final class BossRefactorTwilightForestConfig {
             pursuitRoarTicks = builder.comment("Stationary roar windup, in ticks.")
                     .defineInRange("roar_ticks", 20, 1, 1200);
             pursuitDurationTicks = builder.comment("Pursuit duration, in ticks.")
-                    .defineInRange("duration_ticks", 120, 1, 2400);
+                    .defineInRange("duration_ticks", 120, 20, 2400);
             pursuitSpeedMultiplier = builder.comment(
                             "Navigation speed multiplier during pursuit.")
                     .defineInRange("speed_multiplier", 1.5, 0.0, 20.0);
@@ -347,7 +347,7 @@ public final class BossRefactorTwilightForestConfig {
                     .define("slashblade_enabled", true);
             parryFeedbackTicks = builder.comment(
                             "Feedback duration returned to the parry integration, in ticks.")
-                    .defineInRange("feedback_ticks", 10, 1, 1200);
+                    .defineInRange("feedback_ticks", 30, 30, 100);
             builder.pop();
 
             builder.pop();
@@ -605,14 +605,14 @@ public final class BossRefactorTwilightForestConfig {
                             "Shield cooldown after blocking an ordinary melee attack.")
                     .defineInRange("shield_cooldown_ticks", 100, 0, 12000);
             parryFeedbackTicks = builder.comment(
-                            "Feedback duration returned to SenDimS after a valid parry.")
-                    .defineInRange("parry_feedback_ticks", 10, 1, 1200);
+                            "Feedback duration returned to SenDimS after a valid parry; the parried head also recovers for this long.")
+                    .defineInRange("parry_feedback_ticks", 40, 30, 100);
             meleeVerticalRange = builder.comment(
                             "Vertical range of ordinary melee damage checks.")
                     .defineInRange("melee_vertical_range", 4.0, 0.0, 64.0);
 
             builder.comment("Bite.").push("bite");
-            biteWindupTicks = builder.defineInRange("windup_ticks", 20, 1, 1200);
+            biteWindupTicks = builder.defineInRange("windup_ticks", 20, 20, 1200);
             biteRange = builder.defineInRange("range", 6.0, 0.1, 64.0);
             biteHalfAngleDegrees = builder.comment(
                             "Half-angle of the bite arc.")
@@ -622,7 +622,7 @@ public final class BossRefactorTwilightForestConfig {
             builder.pop();
 
             builder.comment("Head sweep.").push("sweep");
-            sweepWindupTicks = builder.defineInRange("windup_ticks", 30, 1, 1200);
+            sweepWindupTicks = builder.defineInRange("windup_ticks", 30, 20, 1200);
             sweepRadius = builder.defineInRange("radius", 8.0, 0.1, 64.0);
             sweepHalfAngleDegrees = builder.defineInRange(
                     "half_angle_degrees", 90.0, 1.0, 180.0);
@@ -631,7 +631,7 @@ public final class BossRefactorTwilightForestConfig {
             builder.pop();
 
             builder.comment("Head slam.").push("slam");
-            slamWindupTicks = builder.defineInRange("windup_ticks", 40, 1, 1200);
+            slamWindupTicks = builder.defineInRange("windup_ticks", 40, 20, 1200);
             slamRadius = builder.defineInRange("radius", 5.0, 0.1, 64.0);
             slamDamageMultiplier = builder.defineInRange(
                     "damage_multiplier", 1.5, 0.0, 100.0);
@@ -756,7 +756,7 @@ public final class BossRefactorTwilightForestConfig {
 
             builder.comment("Shield bash.").push("shield_bash");
             shieldBashWindupTicks = builder.comment("Shield bash warning duration, in ticks.")
-                    .defineInRange("windup_ticks", 30, 0, 1200);
+                    .defineInRange("windup_ticks", 30, 20, 1200);
             shieldBashCooldownTicks = builder.comment("Delay between shield bashes, in ticks.")
                     .defineInRange("cooldown_ticks", 120, 1, 12000);
             shieldBashLength = builder.comment("Forward length of the shield bash hit rectangle.")
@@ -782,7 +782,7 @@ public final class BossRefactorTwilightForestConfig {
                     .defineInRange("stun_ticks", 40, 1, 1200);
             shieldBashParryFeedbackTicks = builder.comment(
                             "Feedback duration returned after parrying a shield bash, in ticks.")
-                    .defineInRange("parry_feedback_ticks", 40, 1, 1200);
+                    .defineInRange("parry_feedback_ticks", 60, 30, 100);
             builder.pop();
 
             builder.comment("Summoning and melee cruise.").push("summoning");
@@ -813,6 +813,7 @@ public final class BossRefactorTwilightForestConfig {
         public final ForgeConfigSpec.IntValue parryFeedbackTicks;
         public final ForgeConfigSpec.IntValue windupParticlesPerTick;
         public final ForgeConfigSpec.IntValue chargeCooldownTicks;
+        public final ForgeConfigSpec.IntValue chargeWindupTicks;
         public final ForgeConfigSpec.IntValue pounceWindupTicks;
         public final ForgeConfigSpec.IntValue pounceFlightTicks;
         public final ForgeConfigSpec.DoubleValue pounceImpactRadius;
@@ -901,7 +902,7 @@ public final class BossRefactorTwilightForestConfig {
             stunDurationTicks = builder.comment("Stun duration after a successful defensive reaction.")
                     .defineInRange("stun_duration_ticks", 60, 1, 12000);
             parryFeedbackTicks = builder.comment("Feedback duration returned to SenDimS.")
-                    .defineInRange("parry_feedback_ticks", 10, 1, 1200);
+                    .defineInRange("parry_feedback_ticks", 60, 30, 100);
             windupParticlesPerTick = builder.comment("Warning particles emitted per windup tick.")
                     .defineInRange("windup_particles_per_tick", 4, 0, 128);
 
@@ -909,10 +910,13 @@ public final class BossRefactorTwilightForestConfig {
             chargeCooldownTicks = builder.defineInRange(
                     "cooldown_ticks",
                     NagaCombatDefaults.CHARGE_COOLDOWN_TICKS, 1, 12000);
+            chargeWindupTicks = builder.comment(
+                            "Stationary warning before a charge, in game ticks. The parry window covers the warning and the charge.")
+                    .defineInRange("windup_ticks", 20, 20, 200);
             builder.pop();
 
             builder.comment("Pounce.").push("pounce");
-            pounceWindupTicks = builder.defineInRange("windup_ticks", 30, 1, 1200);
+            pounceWindupTicks = builder.defineInRange("windup_ticks", 30, 20, 1200);
             pounceFlightTicks = builder.defineInRange("flight_ticks", 20, 1, 1200);
             pounceImpactRadius = builder.defineInRange("impact_radius", 4.0, 0.1, 64.0);
             pounceVerticalRange = builder.comment("Vertical range of the pounce impact.")
@@ -932,7 +936,7 @@ public final class BossRefactorTwilightForestConfig {
             builder.pop();
 
             builder.comment("Venom breath.").push("venom_breath");
-            venomWindupTicks = builder.defineInRange("windup_ticks", 30, 1, 1200);
+            venomWindupTicks = builder.defineInRange("windup_ticks", 30, 20, 1200);
             venomLength = builder.defineInRange("length", 16.0, 0.1, 128.0);
             venomWidth = builder.defineInRange("width", 4.0, 0.1, 64.0);
             venomProjectileSpeed = builder.defineInRange("projectile_speed", 1.0, 0.05, 20.0);
@@ -1057,6 +1061,7 @@ public final class BossRefactorTwilightForestConfig {
         public final ForgeConfigSpec.DoubleValue damageBonusPerFallenKnight;
         public final ForgeConfigSpec.BooleanValue playerAvoidanceEnabled;
         public final ForgeConfigSpec.DoubleValue playerAvoidanceDistance;
+        public final ForgeConfigSpec.DoubleValue maximumHeightAboveGround;
         public final ForgeConfigSpec.BooleanValue chargeEnabled;
         public final ForgeConfigSpec.IntValue deathHandoffDelayTicks;
         public final ForgeConfigSpec.IntValue chargeWindupTicks;
@@ -1108,6 +1113,10 @@ public final class BossRefactorTwilightForestConfig {
             playerAvoidanceDistance = builder.comment(
                             "Minimum horizontal player distance for non-possessed knights.")
                     .defineInRange("player_avoidance_distance", 10.0, 0.0, 64.0);
+            maximumHeightAboveGround = builder.comment(
+                            "Highest point Knight Phantoms fly to, measured from the ground under their target",
+                            "(or from their home point when they have no target).")
+                    .defineInRange("maximum_height_above_ground", 3.0, 0.0, 64.0);
             builder.pop();
 
             builder.comment("Sequential Knight Charge.").push("charge");
@@ -1118,7 +1127,7 @@ public final class BossRefactorTwilightForestConfig {
                     .defineInRange("death_handoff_delay_ticks", 30, 0, 1200);
             chargeWindupTicks = builder.comment(
                             "Windup before each knight's first charge, in ticks.")
-                    .defineInRange("windup_ticks", 30, 0, 1200);
+                    .defineInRange("windup_ticks", 30, 20, 1200);
             chargeDurationTicks = builder.comment("Maximum duration of one charge, in ticks.")
                     .defineInRange("duration_ticks", 50, 1, 1200);
             chargeMaximumDistance = builder.comment(
@@ -1150,7 +1159,7 @@ public final class BossRefactorTwilightForestConfig {
                     .define("slashblade_parry_enabled", true);
             parryFeedbackTicks = builder.comment(
                             "Parry feedback and stationary vulnerability duration, in ticks.")
-                    .defineInRange("parry_stun_ticks", 40, 1, 1200);
+                    .defineInRange("parry_stun_ticks", 40, 30, 100);
             parryCancelsRemainingCharges = builder.comment(
                             "Cancel every remaining charge of the parried knight, then continue the round.")
                     .define("parry_cancels_remaining_charges", true);
@@ -1176,7 +1185,7 @@ public final class BossRefactorTwilightForestConfig {
                     .defineInRange("charge_count", 3, 1, 100);
             lastKnightChargeWindupTicks = builder.comment(
                             "Windup before each final-knight charge segment, in ticks.")
-                    .defineInRange("windup_ticks", 15, 0, 1200);
+                    .defineInRange("windup_ticks", 20, 20, 1200);
             builder.pop();
 
             builder.pop();
@@ -1200,6 +1209,8 @@ public final class BossRefactorTwilightForestConfig {
         public final ForgeConfigSpec.IntValue iceShieldShieldCooldownTicks;
         public final ForgeConfigSpec.BooleanValue iceShieldSlashBladeParryEnabled;
         public final ForgeConfigSpec.IntValue iceShieldParryFeedbackTicks;
+        public final ForgeConfigSpec.DoubleValue iceShieldParryApproachDistance;
+        public final ForgeConfigSpec.IntValue iceShieldParryMinimumWindowTicks;
         public final ForgeConfigSpec.DoubleValue chaseSpeedMultiplier;
         public final ForgeConfigSpec.DoubleValue dropTelegraphRadius;
         public final ForgeConfigSpec.DoubleValue dropDamageMultiplier;
@@ -1291,7 +1302,13 @@ public final class BossRefactorTwilightForestConfig {
             iceShieldSlashBladeParryEnabled = builder.comment("Allow optional SlashBlade parries against ice shields.")
                     .define("slashblade_parry_enabled", true);
             iceShieldParryFeedbackTicks = builder.comment("Feedback duration returned after parrying an ice shield, in ticks.")
-                    .defineInRange("parry_feedback_ticks", 20, 1, 1200);
+                    .defineInRange("parry_feedback_ticks", 40, 30, 100);
+            iceShieldParryApproachDistance = builder.comment(
+                            "Distance around the orbiting ice shields at which the parry window opens.")
+                    .defineInRange("parry_approach_distance", 2.0, 0.0, 16.0);
+            iceShieldParryMinimumWindowTicks = builder.comment(
+                            "Minimum ice shield parry window, in ticks.")
+                    .defineInRange("parry_minimum_window_ticks", 20, 20, 200);
             builder.pop();
 
             builder.comment("Original hover movement.").push("chase");

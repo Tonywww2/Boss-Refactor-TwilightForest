@@ -214,21 +214,17 @@ public final class SnowQueenCombat {
     }
 
     public static boolean isCurrentAttackParryable(SnowQueen queen) {
-        if (!customCombatActive(queen)
-                || !BossRefactorTwilightForestConfig.SNOW_QUEEN
-                        .iceShieldSlashBladeParryEnabled.get()) {
-            return false;
-        }
-        return hasShieldCollisionCandidate(queen);
+        return customCombatActive(queen)
+                && BossRefactorTwilightForestConfig.SNOW_QUEEN
+                        .iceShieldSlashBladeParryEnabled.get()
+                && state(queen).iceShieldParryWindowActive;
     }
 
     public static boolean isCurrentAttackParryable(
             SnowQueen queen, @Nullable LivingEntity actor) {
         return actor != null
-                && customCombatActive(queen)
-                && BossRefactorTwilightForestConfig.SNOW_QUEEN
-                        .iceShieldSlashBladeParryEnabled.get()
-                && isShieldCollisionCandidate(queen, actor);
+                && isCurrentAttackParryable(queen)
+                && isShieldParryCandidate(queen, actor);
     }
 
     public static boolean acceptParry(
@@ -250,8 +246,13 @@ public final class SnowQueenCombat {
         state.lastParryActorUuid = actor.getUUID();
         state.shieldCollisionCooldowns.put(
             actor.getUUID(),
-            gameTime + BossRefactorTwilightForestConfig.SNOW_QUEEN
-                .iceShieldCollisionDamageCooldownTicks.get());
+            gameTime + Math.max(
+                BossRefactorTwilightForestConfig.SNOW_QUEEN
+                    .iceShieldCollisionDamageCooldownTicks.get(),
+                BossRefactorTwilightForestConfig.SNOW_QUEEN
+                    .iceShieldParryFeedbackTicks.get()));
+        state.iceShieldParryWindowStart = Long.MIN_VALUE;
+        state.iceShieldParryWindowActive = false;
         return true;
     }
 
@@ -520,7 +521,7 @@ public final class SnowQueenCombat {
             || ticks >= config.shatteredIceRainMaximumDashTicks.get()) {
             access.bossRefactorTF$setSnowQueenSummonState(
                     SnowQueenSummonAccess.STATE_DYING);
-            core.hurt(owner.damageSources().mobAttack(owner), Float.MAX_VALUE);
+            core.kill();
         }
     }
 
@@ -711,56 +712,68 @@ public final class SnowQueenCombat {
         ((ServerPlayer) target).stopUsingItem();
         }
 
-        private static boolean hasShieldCollisionCandidate(SnowQueen queen) {
-        int count = activeShieldCount(queen);
-            SnowQueenCombatState state = state(queen);
-            long gameTime = queen.level().getGameTime();
-        for (int index = 0; index < count; index++) {
-            SnowQueenIceShield shield = queen.iceArray[index];
-            if (!queen.level().getEntitiesOfClass(
-                LivingEntity.class,
-                shield.getBoundingBox().inflate(
-                    BossRefactorTwilightForestConfig.SNOW_QUEEN
-                        .iceShieldCollisionHitboxInflation.get()),
-                candidate -> isSkillTarget(
-                    queen, candidate,
-                    BossRefactorTwilightForestConfig.SNOW_QUEEN
-                            .iceShieldCollisionHitsNonPlayers.get())
-                        && gameTime >= state.shieldCollisionCooldowns
-                            .getOrDefault(
-                                candidate.getUUID(),
-                                Long.MIN_VALUE))
-                .isEmpty()) {
-            return true;
+    private static void updateIceShieldParryWindow(
+            SnowQueen queen, boolean parried) {
+        SnowQueenCombatState state = state(queen);
+        if (parried) {
+            state.iceShieldParryWindowStart = Long.MIN_VALUE;
+            state.iceShieldParryWindowActive = false;
+            return;
+        }
+        boolean threatened = BossRefactorTwilightForestConfig.SNOW_QUEEN
+                .iceShieldSlashBladeParryEnabled.get()
+                && hasShieldThreatTarget(queen);
+        long gameTime = queen.level().getGameTime();
+        if (threatened) {
+            if (state.iceShieldParryWindowStart == Long.MIN_VALUE) {
+                state.iceShieldParryWindowStart = gameTime;
             }
+        } else if (state.iceShieldParryWindowStart != Long.MIN_VALUE
+                && gameTime - state.iceShieldParryWindowStart
+                        >= BossRefactorTwilightForestConfig.SNOW_QUEEN
+                                .iceShieldParryMinimumWindowTicks.get()) {
+            state.iceShieldParryWindowStart = Long.MIN_VALUE;
         }
-        return false;
-        }
+        state.iceShieldParryWindowActive =
+                state.iceShieldParryWindowStart != Long.MIN_VALUE;
+    }
 
-        private static boolean isShieldCollisionCandidate(
-            SnowQueen queen, LivingEntity actor) {
-        if (!isSkillTarget(
-            queen, actor,
-            BossRefactorTwilightForestConfig.SNOW_QUEEN
-                .iceShieldCollisionHitsNonPlayers.get())) {
-            return false;
-        }
-        if (queen.level().getGameTime()
-            < state(queen).shieldCollisionCooldowns.getOrDefault(
-                actor.getUUID(), Long.MIN_VALUE)) {
-            return false;
-        }
+    @Nullable
+    private static AABB iceShieldThreatZone(SnowQueen queen, double extra) {
         int count = activeShieldCount(queen);
-        double inflation = BossRefactorTwilightForestConfig.SNOW_QUEEN
-            .iceShieldCollisionHitboxInflation.get();
+        AABB zone = null;
         for (int index = 0; index < count; index++) {
-            if (queen.iceArray[index].getBoundingBox().inflate(inflation)
-                .intersects(actor.getBoundingBox())) {
-            return true;
-            }
+            AABB bounds = queen.iceArray[index].getBoundingBox();
+            zone = zone == null ? bounds : zone.minmax(bounds);
         }
-        return false;
+        if (zone == null) {
+            return null;
         }
+        return zone.inflate(BossRefactorTwilightForestConfig.SNOW_QUEEN
+                .iceShieldCollisionHitboxInflation.get()
+                + BossRefactorTwilightForestConfig.SNOW_QUEEN
+                        .iceShieldParryApproachDistance.get()
+                + extra);
+    }
+
+    private static boolean hasShieldThreatTarget(SnowQueen queen) {
+        AABB zone = iceShieldThreatZone(queen, 0.0);
+        return zone != null && !queen.level().getEntitiesOfClass(
+                LivingEntity.class, zone,
+                candidate -> isSkillTarget(
+                        queen, candidate,
+                        BossRefactorTwilightForestConfig.SNOW_QUEEN
+                                .iceShieldCollisionHitsNonPlayers.get()))
+                .isEmpty();
+    }
+
+    private static boolean isShieldParryCandidate(
+            SnowQueen queen, LivingEntity actor) {
+        return isSkillTarget(
+                queen, actor,
+                BossRefactorTwilightForestConfig.SNOW_QUEEN
+                        .iceShieldCollisionHitsNonPlayers.get());
+    }
 
     private static boolean isSkillTarget(
             SnowQueen queen, LivingEntity target, boolean hitsNonPlayers) {
@@ -1234,6 +1247,7 @@ public final class SnowQueenCombat {
         if (!bridge.isAvailable()) {
             return;
         }
+        updateIceShieldParryWindow(queen, bridge.isParried(queen));
         if (!parryAccess.bossRefactorTF$isCurrentAttackParryable()) {
             closeParryWindow(queen);
         } else if (!bridge.isParryable(queen) && !bridge.isParried(queen)

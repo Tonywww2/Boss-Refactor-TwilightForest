@@ -38,6 +38,8 @@ public final class SnowQueenCombatState {
     double lockedZ;
     long lastParryGameTime = Long.MIN_VALUE;
     UUID lastParryActorUuid;
+    long iceShieldParryWindowStart = Long.MIN_VALUE;
+    boolean iceShieldParryWindowActive;
     AttackTelegraph currentTelegraph = AttackTelegraph.NONE;
     AttackTelegraph dropTelegraph = AttackTelegraph.NONE;
     final Set<UUID> linkedSummons = new LinkedHashSet<>();

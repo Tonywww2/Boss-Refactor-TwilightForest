@@ -1,6 +1,7 @@
 package com.tonywww.bossrefactortf.compat;
 
 import com.tonywww.bossrefactortf.BossRefactorTwilightForest;
+import com.tonywww.bossrefactortf.boss.TwilightBossParryIntegration;
 import net.minecraftforge.fml.ModList;
 
 import java.lang.reflect.InvocationTargetException;
@@ -20,28 +21,18 @@ public final class OptionalCompatBootstrap {
             return;
         }
 
+        // 特供模组只是联动：版本不兼容时记录警告并关闭联动，不影响本模组加载。
         try {
             Class<?> bootstrap = Class.forName(SENDIMS_BOOTSTRAP);
             bootstrap.getMethod("initialize").invoke(null);
-        } catch (ClassNotFoundException | NoSuchMethodException
-                 | IllegalAccessException exception) {
-            BossRefactorTwilightForest.LOGGER.error(
-                    "Unable to load SenDimS boss compatibility", exception);
-            throw new IllegalStateException(
-                "SenDimS is installed but boss compatibility could not start",
-                exception);
         } catch (InvocationTargetException exception) {
-            BossRefactorTwilightForest.LOGGER.error(
-                    "SenDimS boss compatibility failed during initialization",
+            TwilightBossParryIntegration.disable(
+                    "SenDimS compatibility failed during initialization",
                     exception.getCause());
-            throw new IllegalStateException(
-                "SenDimS boss compatibility failed during initialization",
-                exception.getCause());
-        } catch (LinkageError error) {
-            BossRefactorTwilightForest.LOGGER.error(
-                    "SenDimS boss compatibility has an incompatible API", error);
-            throw new IllegalStateException(
-                "SenDimS boss compatibility has an incompatible API", error);
+        } catch (ReflectiveOperationException | LinkageError
+                 | RuntimeException exception) {
+            TwilightBossParryIntegration.disable(
+                    "the installed SenDimS is not compatible", exception);
         }
     }
 }
